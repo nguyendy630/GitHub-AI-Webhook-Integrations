@@ -31,11 +31,13 @@ class WebhookHandler {
         // Handle different event types
         switch (eventType) {
             case 'pull_request':
+                logger.info('Received pull_request');
                 await this.handlePullRequest(payload);
                 eventStats.pull_request++;
                 break;
 
             case 'pull_request_review':
+                logger.info('Received pull_request_review');
                 await this.handlePullRequestReview(payload);
                 eventStats.pull_request_review++;
                 break;
