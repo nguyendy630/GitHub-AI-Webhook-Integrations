@@ -12,7 +12,8 @@ const eventStats = {
     ping: 0,
     pull_request: 0,
     pull_request_review: 0,
-    other: 0
+    other: 0,
+    push: 0
 }
 
 class WebhookHandler {
@@ -42,6 +43,7 @@ class WebhookHandler {
             case 'push':
                 // Maybe analyze commits in the future
                 logger.info('Push event received (not processing yet)');
+                eventStats.push++;
                 break;
 
             case 'ping':
