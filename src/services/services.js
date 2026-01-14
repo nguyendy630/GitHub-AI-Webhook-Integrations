@@ -1,26 +1,26 @@
 const { Octokit } = require("@octokit/rest");
-const logger = require('../utils/logger');
+const logger = require("../utils/logger");
 
 class GithubService {
     // Initilaze Octokit with auth token.
     constructor() {
         if (!process.env.GITHUB_TOKEN) {
             throw new Error("Github Token is required.");
-        };
+        }
 
         this.octokit = new Octokit({
-            auth: process.env.GITHUB_TOKEN
+            auth: process.env.GITHUB_TOKEN,
         });
 
         logger.info("Github Service initialized.");
     }
 
     /**
-     *  Fetches detailed pull request information from GitHub. 
-     * @param {*} owner 
-     * @param {*} repo 
-     * @param {*} prNumber 
-     * @returns 
+     *  Fetches detailed pull request information from GitHub.
+     * @param {*} owner
+     * @param {*} repo
+     * @param {*} prNumber
+     * @returns
      */
     async getPullRequest(owner, repo, prNumber) {
         try {
@@ -29,7 +29,7 @@ class GithubService {
             const { data } = await this.octokit.pulls.get({
                 owner,
                 repo,
-                pull_number: prNumber
+                pull_number: prNumber,
             });
 
             console.log(data);
@@ -48,9 +48,8 @@ class GithubService {
                 deletions: data.deletions,
                 changedFiles: data.changed_files,
                 mergeable: data.mergeable,
-                url: data.html_url
+                url: data.html_url,
             };
-
         } catch (error) {
             logger.error("Error fetching PR details", { error: error.message });
             throw error;
@@ -58,10 +57,10 @@ class GithubService {
     }
 
     /**
-     * Gets file changes for given pull request. 
-     * @param {\} owner 
-     * @param {*} repo 
-     * @param {*} prNumber 
+     * Gets file changes for given pull request.
+     * @param {String} owner
+     * @param {String} repo
+     * @param {number} prNumber
      */
     async getPRFiles(owner, repo, prNumber) {
         try {
@@ -71,11 +70,11 @@ class GithubService {
                 owner,
                 repo,
                 pull_number: prNumber,
-                per_page: 100 // Max Per Page.
-            })
+                per_page: 100, // Max Per Page.
+            });
 
             // Maps over data from Github API to get file info.
-            return data.map(file => ({
+            return data.map((file) => ({
                 filename: file.filename,
                 status: file.status, // 'added', 'removed', 'modified', 'renamed'
                 additions: file.additions,
@@ -84,49 +83,63 @@ class GithubService {
                 patch: file.patch, // The actual diff
                 blobUrl: file.blob_url,
                 rawUrl: file.raw_url,
-                previousFilename: file.previous_filename // if renamed
+                previousFilename: file.previous_filename, // if renamed
             }));
-
         } catch (error) {
             logger.error("Error fetching PR files", { error: error.message });
+            throw error;
         }
     }
 
     /**
      * Gets the contents of the file at given path in the repository.
-     * @param {*} owner 
-     * @param {*} repo 
-     * @param {*} filePath 
-     * @param {*} ref 
+     * @param {*} owner
+     * @param {*} repo
+     * @param {*} filePath
+     * @param {*} ref
      */
     async getFileContent(owner, repo, filePath, ref) {
         try {
-            logger.info("Fetching file content", { owner, repo, filePath, ref });
+            logger.info("Fetching file content", {
+                owner,
+                repo,
+                filePath,
+                ref,
+            });
 
             const { data } = await this.octokit.repos.getContent({
                 owner,
                 repo,
                 path,
-                ref // Branch or commit SHA
+                ref, // Branch or commit SHA
             });
 
             // Extract the base64 content and decode it to utf-8.
-            const content = Buffer.from(data.content, 'base64').toString('utf-8');
+            const content = Buffer.from(data.content, "base64").toString(
+                "utf-8",
+            );
 
             return {
                 content,
                 size: data.size,
                 sha: data.sha,
-                path: data.path
-            }
-
+                path: data.path,
+            };
         } catch (error) {
+            
             if (error.status === 404) {
-                logger.warn("File not found in repository", { owner, repo, filePath, ref });
+                logger.warn("File not found in repository", {
+                    owner,
+                    repo,
+                    filePath,
+                    ref,
+                });
                 return null;
             }
 
-            logger.error("Error fetching file content", { erorr: error.message });
+            logger.error("Error fetching file content", {
+                erorr: error.message,
+            });
         }
     }
 
@@ -139,8 +152,8 @@ class GithubService {
                 repo,
                 pull_number: prNumber,
                 mediaType: {
-                    format: "diff"  // Unified Diff Format.
-                }
+                    format: "diff", // Unified Diff Format.
+                },
             });
 
             return data;
@@ -152,58 +165,41 @@ class GithubService {
 
     // Phase 3.
     /**
-     * Posts a review comment on the given pull request. 
-     * @param {*} owner 
-     * @param {*} repo 
-     * @param {*} prNumber 
-     * @param {*} commentBody 
+     * Posts a review comment on the given pull request.
+     * @param {*} owner
+     * @param {*} repo
+     * @param {*} prNumber
+     * @param {*} commentBody
+     * @param {*} path 'src/index.ts'
      */
-    async postReviewComment(owner, repo, prNumber, commentBody) {
-
-        try {
-            logger.info("Posting review comment", { owner, repo, prNuber });
-
-            const { data } = await this.octokit.pulls.createReview({
-                owner,
-                repo,
-                pull_number: prNumber,
-                body,
-                event: 'COMMENT' // 'APPROVE', 'REQUEST_CHANGES', 'COMMENT'
-            });
-
-            return data;
-
-        } catch (error) {
-            logger.error("Error posting review comment", { error: error.message });
-            throw error;
-        }
-
-    }
-
-    /**
-     * Post inline comment on specific pull request. 
-     * @param {*} owner 
-     * @param {*} repo 
-     * @param {*} prNumber 
-     * @param {*} comment 
-     */
-    async postInLineComment(owner, repo, prNumber, comment) {
+    async createReviewComment(owner, repo, prNumber, commentBody, path) {
         try {
             const { data } = await this.octokit.pulls.createReviewComment({
                 owner,
                 repo,
                 pull_number: prNumber,
-                body: comment.body,
-                path: comment.path,
-                line: comment.line,
-                side: comment.side || 'RIGHT' // 'LEFT' or 'RIGHT'. -> LEFT indicates old file and RIGHT indicates new file.
-            })
-
+                body: commentBody,
+                path,
+            });
             return data;
         } catch (error) {
-            logger.error("Error posting inline comment", { error: error.message });
+            logger.error("Error creating review comment", {
+                error: error.message,
+            });
             throw error;
         }
+    }
+
+    /**
+     * Post inline comment on specific pull request.
+     * @param {*} owner
+     * @param {*} repo
+     * @param {*} prNumber
+     * @param {*} comment
+     */
+    async postInLineComment(owner, repo, prNumber, comment) {
+        try {
+        } catch (error) {}
     }
 }
 

@@ -22,7 +22,6 @@ pids/
 .env
 .env.local
 .env.*.local
-.env.template
 
 # Build output
 dist/
