@@ -24,7 +24,7 @@ app.get("/health", (req, res) => {
 });
 
 // Github Webhooks Health Check
-app.get("/webhooks/github", (req, res) => {
+app.get("/api/webhooks", (req, res) => {
     res.status(200).json({ message: "GitHub Webhooks endpoint is live" });
 });
 
@@ -90,7 +90,7 @@ app.use((err, req, res, next) => {
 app.listen(port, () => {
     logger.info(`Server is running on port ${port}`);
     logger.info(
-        "Webhook endpint: http://localhost:" + port + "/webhook/github",
+        "Webhook endpint running!",
     );
 });
 
