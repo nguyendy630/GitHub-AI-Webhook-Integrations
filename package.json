@@ -1,23 +1,24 @@
 {
-  "name": "ai_code_reviewer",
-  "version": "1.0.0",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon ./src/server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@ngrok/ngrok": "^1.7.0",
-    "@octokit/rest": "^22.0.1",
-    "@octokit/webhooks": "^14.2.0",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1",
-    "winston": "^3.19.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.11"
-  },
-  "description": ""
+    "name": "ai_code_reviewer",
+    "version": "1.0.0",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "dev": "nodemon ./src/server.js",
+        "start": "node ./src/server.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "@ngrok/ngrok": "^1.7.0",
+        "@octokit/rest": "^22.0.1",
+        "@octokit/webhooks": "^14.2.0",
+        "dotenv": "^17.2.3",
+        "express": "^5.2.1",
+        "winston": "^3.19.0"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.11"
+    },
+    "description": ""
 }

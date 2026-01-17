@@ -3,6 +3,10 @@
         {
             "source": "/api/webhooks",
             "destination": "/api/webhooks"
+        },
+        {
+            "source": "api/health",
+            "destination": "/health"
         }
     ]
 }
