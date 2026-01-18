@@ -8,6 +8,7 @@ const eventStats = {
     pull_request: 0,
     pull_request_review: 0,
     other: 0,
+    pull: 0
 };
 
 /**
@@ -32,17 +33,20 @@ class WebhookHandler {
         switch (eventType) {
             case "pull_request":
                 await this.handlePullRequest(payload);
+                logger.info("Pull request event received")
                 eventStats.pull_request++;
                 break;
 
             case "pull_request_review":
                 await this.handlePullRequestReview(payload);
+                logger.info("Pull request review event received")
                 eventStats.pull_request_review++;
                 break;
 
             case "push":
                 // Maybe analyze commits in the future
                 logger.info("Push event received (not processing yet)");
+                eventStats.push++;
                 break;
 
             case "ping":
