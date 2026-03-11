@@ -1,5 +1,10 @@
 // Ocotokit Object.
+require("dotenv").config();
+const express = require("express");
+const logger = require("./utils/logger");
+const webhookHandler = require("./webhooks/handler");
 const { Webhooks } = require("@octokit/webhooks");
+
 const webhooks = new Webhooks({
     secret: process.env.GITHUB_WEBHOOK_SECRET,
 });
