@@ -8,12 +8,20 @@ const { Webhooks } = require("@octokit/webhooks");
 const app = express();
 app.use(express.json())
 
-const webhooks = new Webhooks({
-    secret: process.env.GITHUB_WEBHOOK_SECRET,
-});
+// Change to lazy initialization:
+async function getWebhooks() {
+    if (!getWebhooks.instance) {
+        const { Webhooks } = await import("@octokit/webhooks");
+        getWebhooks.instance = new Webhooks({
+            secret: process.env.GITHUB_WEBHOOK_SECRET,
+        });
+    }
+    return getWebhooks.instance;
+}
 
 // Github Webhook Endpoint.
 app.post("/api/webhooks", async (req, res) => {
+    const webhooks = await getWebhooks();
     try {
         // Get the signature from headers.
         const signature = req.headers["x-hub-signature-256"];

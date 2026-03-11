@@ -38,7 +38,7 @@ class GithubService {
         try {
             logger.info("Fetching PR details", { owner, repo, prNumber });
 
-            const { data } = await this.octokit.pulls.get({
+            const { data } = await octokit.pulls.get({
                 owner,
                 repo,
                 pull_number: prNumber,
@@ -79,7 +79,7 @@ class GithubService {
         try {
             logger.info("Fetching PR files", { owner, repo, prNumber });
 
-            const { data } = await this.octokit.pulls.listFiles({
+            const { data } = await octokit.pulls.listFiles({
                 owner,
                 repo,
                 pull_number: prNumber,
@@ -124,7 +124,7 @@ class GithubService {
                 ref,
             });
 
-            const { data } = await this.octokit.repos.getContent({
+            const { data } = await octokit.repos.getContent({
                 owner,
                 repo,
                 path,
@@ -171,7 +171,7 @@ class GithubService {
         try {
             logger.info("Fetching PR Diff", { owner, repo, prNumber });
 
-            const { data } = await this.octokit.pulls.get({
+            const { data } = await octokit.pulls.get({
                 owner,
                 repo,
                 pull_number: prNumber,
@@ -199,12 +199,12 @@ class GithubService {
     async createReviewComment(owner, repo, prNumber, commentBody, path) {
         const octokit = await this.getOctoKit();
         try {
-            const { data } = await this.octokit.pulls.createReviewComment({
+            const { data } = await octokit.pulls.createReviewComment({
                 owner,
                 repo,
                 pull_number: prNumber,
                 body: commentBody,
-                path,
+                path: filePath,
             });
             return data;
         } catch (error) {
