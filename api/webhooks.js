@@ -1,8 +1,8 @@
 // Ocotokit Object.
 require("dotenv").config();
 const express = require("express");
-const logger = require("src/utils/logger.js");
-const webhookHandler = require("src/webhooks/handler");
+const logger = require("../src/utils/logger.js");
+const webhookHandler = require("../src/webhooks/handler");
 const { Webhooks } = require("@octokit/webhooks");
 
 const app = express();
@@ -30,7 +30,7 @@ app.post("/api/webhooks", async (req, res) => {
         const isValid = await webhooks.verify(
             JSON.stringify(req.body),
             signature,
-        );
+        )
 
         if (!isValid) {
             logger.warn("Invalid webhook signature", { event, id });
@@ -50,7 +50,6 @@ app.post("/api/webhooks", async (req, res) => {
                     id,
                     error: error.message,
                 });
-                throw error;
             }
         });
 
@@ -61,4 +60,4 @@ app.post("/api/webhooks", async (req, res) => {
 });
 
 // Required for Vercel Deployment.
-module.export = app;
+module.exports = app;
