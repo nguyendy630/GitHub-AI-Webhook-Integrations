@@ -3,7 +3,6 @@ require("dotenv").config();
 const express = require("express");
 const logger = require("../src/utils/logger.js");
 const webhookHandler = require("../src/webhooks/handler");
-const { Webhooks } = require("@octokit/webhooks");
 
 const app = express();
 app.use(express.json())
@@ -22,6 +21,7 @@ async function getWebhooks() {
 // Github Webhook Endpoint.
 app.post("/api/webhooks", async (req, res) => {
     const webhooks = await getWebhooks();
+
     try {
         // Get the signature from headers.
         const signature = req.headers["x-hub-signature-256"];
