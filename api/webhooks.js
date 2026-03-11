@@ -12,7 +12,7 @@ async function getWebhooks() {
     if (!getWebhooks.instance) {
         const { Webhooks } = await import("@octokit/webhooks");
         getWebhooks.instance = new Webhooks({
-            secret: process.env.GITHUB_WEBHOOK_SECRET,
+            secret: process.env.GH_WEBHOOK,
         });
     }
     return getWebhooks.instance;
