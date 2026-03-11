@@ -1,4 +1,3 @@
-const { Octokit } = require("@octokit/rest");
 const logger = require("../utils/logger");
 
 /**
@@ -11,12 +10,20 @@ class GithubService {
             throw new Error("Github Token is required.");
         }
 
-        this.octokit = new Octokit({
-            auth: process.env.GITHUB_TOKEN,
-        });
-
         logger.info("GitHub Service Initialized");
     }
+
+    // Initialize the Octokit lazily
+    async getOctoKit() {
+        if (!this.octokit) {
+            const { Octokit } = await import("@octokit/rest");
+            this.octokit = new Octokit({
+                auth: process.env.GITHUB_TOKEN,
+            });
+        }
+        return this.octokit;
+    }
+
 
     /**
      *  Fetches detailed pull request information from GitHub.
@@ -27,6 +34,7 @@ class GithubService {
      * @returns {object}
      */
     async getPullRequest(owner, repo, prNumber) {
+        const octokit = await this.getOctoKit();
         try {
             logger.info("Fetching PR details", { owner, repo, prNumber });
 
@@ -67,6 +75,7 @@ class GithubService {
      * @returns {Array{object}}
      */
     async getPRFiles(owner, repo, prNumber) {
+        const octokit = await this.getOctoKit();
         try {
             logger.info("Fetching PR files", { owner, repo, prNumber });
 
@@ -106,6 +115,7 @@ class GithubService {
      * @returns {Array{object}}
      */
     async getFileContent(owner, repo, filePath, ref) {
+        const octokit = await this.getOctoKit();
         try {
             logger.info("Fetching file content", {
                 owner,
@@ -157,6 +167,7 @@ class GithubService {
      * @returns Array{object}
      */
     async getPRDiff(owner, repo, prNumber) {
+        const octokit = await this.getOctoKit();
         try {
             logger.info("Fetching PR Diff", { owner, repo, prNumber });
 
@@ -186,6 +197,7 @@ class GithubService {
      * @param {string} path 'src/index.ts'
      */
     async createReviewComment(owner, repo, prNumber, commentBody, path) {
+        const octokit = await this.getOctoKit();
         try {
             const { data } = await this.octokit.pulls.createReviewComment({
                 owner,
