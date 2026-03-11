@@ -29,10 +29,10 @@ app.post("/api/webhooks", async (req, res) => {
         const id = req.headers["x-github-delivery"];
 
         /* DEBUG */
-        // console.log('Event:', event);
-        // console.log('Delivery ID:', id);
-        // console.log('Signature header:', signature ? 'present' : 'MISSING');
-        // console.log('Body:', req.body ? 'present' : 'MISSING');
+        console.log('Event:', event);
+        console.log('Delivery ID:', id);
+        console.log('Signature header:', signature ? 'present' : 'MISSING');
+        console.log('Body:', req.body ? 'present' : 'MISSING');
 
         // Verify the webhook siganture.
         const isValid = await webhooks.verify(
