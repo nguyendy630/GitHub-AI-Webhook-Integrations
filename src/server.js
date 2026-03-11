@@ -8,12 +8,11 @@ const port = process.env.PORT || 3000;
 
 // Initialize GitHub Webhooks
 const webhooks = new Webhooks({
-    secret: process.env.GITHUB_WEBHOOK_SECRET,
+    secret: process.env.GH_WEBHOOK,
 });
 
 // Middleware to parse JSON
 app.use(express.json());
-
 
 // Error Handling middleware.
 app.use((err, req, res, next) => {

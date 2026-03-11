@@ -6,7 +6,7 @@ const logger = require("../utils/logger");
 class GithubService {
     // Initilaze Octokit with auth token.
     constructor() {
-        if (!process.env.GITHUB_TOKEN) {
+        if (!process.env.GH_TOKEN) {
             throw new Error("Github Token is required.");
         }
 
