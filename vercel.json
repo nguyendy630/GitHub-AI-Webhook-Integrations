@@ -8,11 +8,11 @@
     "routes": [
         {
             "src": "/health",
-            "dest": "/server.js"
+            "dest": "/api/health.js"
         },
         {
-            "src": "/stats",
-            "dest": "/server.js"
+            "src": "/api/stats",
+            "dest": "/api/stats.js"
         },
         {
             "src": "/api/webhooks",
