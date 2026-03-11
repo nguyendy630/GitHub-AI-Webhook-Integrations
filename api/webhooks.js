@@ -5,6 +5,9 @@ const logger = require("./utils/logger");
 const webhookHandler = require("./webhooks/handler");
 const { Webhooks } = require("@octokit/webhooks");
 
+const app = express();
+const port = process.env.PORT || 3000;
+
 const webhooks = new Webhooks({
     secret: process.env.GITHUB_WEBHOOK_SECRET,
 });
