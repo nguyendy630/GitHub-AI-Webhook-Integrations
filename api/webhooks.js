@@ -1,19 +1,27 @@
 // Ocotokit Object.
 require("dotenv").config();
 const express = require("express");
-const logger = require("./utils/logger");
-const webhookHandler = require("./webhooks/handler");
-const { Webhooks } = require("@octokit/webhooks");
+const logger = require("../src/utils/logger.js");
+const webhookHandler = require("../src/webhooks/handler");
 
 const app = express();
-const port = process.env.PORT || 3000;
+app.use(express.json())
 
-const webhooks = new Webhooks({
-    secret: process.env.GITHUB_WEBHOOK_SECRET,
-});
+// Change to lazy initialization:
+async function getWebhooks() {
+    if (!getWebhooks.instance) {
+        const { Webhooks } = await import("@octokit/webhooks");
+        getWebhooks.instance = new Webhooks({
+            secret: process.env.GITHUB_WEBHOOK_SECRET,
+        });
+    }
+    return getWebhooks.instance;
+}
 
 // Github Webhook Endpoint.
 app.post("/api/webhooks", async (req, res) => {
+    const webhooks = await getWebhooks();
+
     try {
         // Get the signature from headers.
         const signature = req.headers["x-hub-signature-256"];
@@ -30,7 +38,7 @@ app.post("/api/webhooks", async (req, res) => {
         const isValid = await webhooks.verify(
             JSON.stringify(req.body),
             signature,
-        );
+        )
 
         if (!isValid) {
             logger.warn("Invalid webhook signature", { event, id });
@@ -50,7 +58,6 @@ app.post("/api/webhooks", async (req, res) => {
                     id,
                     error: error.message,
                 });
-                throw error;
             }
         });
 
@@ -61,4 +68,4 @@ app.post("/api/webhooks", async (req, res) => {
 });
 
 // Required for Vercel Deployment.
-module.export = app;
+module.exports = app;

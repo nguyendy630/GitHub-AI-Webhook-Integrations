@@ -1,8 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { Webhooks } = require("@octokit/webhooks");
-const logger = require("./utils/logger");
-const webhookHandler = require("./webhooks/handler");
+const logger = require("src/utils/logger.js");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -14,7 +13,6 @@ const webhooks = new Webhooks({
 
 // Middleware to parse JSON
 app.use(express.json());
-
 
 
 // Error Handling middleware.
