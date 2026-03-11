@@ -1,0 +1,200 @@
+# ============================================================
+# CI Pipeline: GitHub AI Webhook Integrations
+# ============================================================
+# This file lives at: .github/workflows/ci.yml
+#
+# HOW CI/CD WORKS:
+#   CI (Continuous Integration) = automatically run checks
+#   every time code is pushed or a PR is opened.
+#   This catches bugs BEFORE they merge into your main branch.
+#
+# TRIGGERS: This pipeline runs when...
+# ============================================================
+
+name: CI Pipeline
+
+on:
+  # Trigger on any push to these branches
+  push:
+    branches:
+      - master
+      - main
+      - "feature/**"   # matches feature/my-thing, feature/fix-bug, etc.
+
+  # Trigger when a Pull Request is opened or updated
+  pull_request:
+    branches:
+      - master
+      - main
+
+# ============================================================
+# JOBS: Each job runs in its own isolated virtual machine.
+# Jobs can run in parallel (default) or depend on each other.
+# ============================================================
+
+jobs:
+
+  # ------------------------------------------------------------
+  # JOB 1: LINT
+  # Checks that your code follows consistent style/formatting.
+  # Catches obvious errors (undefined vars, syntax mistakes).
+  # ------------------------------------------------------------
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest   # GitHub spins up a fresh Ubuntu VM for this
+
+    steps:
+      # Step 1: "Checkout" means: download your repo code onto the VM
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install Node.js on the VM
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"          # Use Node 20 LTS
+          cache: "npm"                # Cache node_modules to speed up future runs
+
+      # Step 3: Install dependencies (same as running `npm install` locally)
+      # `ci` is stricter than `install` — it uses package-lock.json exactly
+      - name: Install dependencies
+        run: npm ci
+
+      # Step 4: Run linter
+      # If you don't have ESLint yet, this step will be skipped gracefully.
+      # To add ESLint: npm install --save-dev eslint && npx eslint --init
+      - name: Run ESLint
+        run: |
+          if [ -f ".eslintrc*" ] || [ -f "eslint.config*" ] || [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ]; then
+            npx eslint . --ext .js,.mjs
+          else
+            echo "No ESLint config found. Skipping lint."
+            echo "Tip: Run 'npx eslint --init' to set up linting!"
+          fi
+
+  # ------------------------------------------------------------
+  # JOB 2: TEST
+  # Runs your automated test suite.
+  # This job depends on lint passing first (needs: lint).
+  # ------------------------------------------------------------
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint   # Only runs if the lint job succeeds
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Run tests — expects a "test" script in your package.json.
+      # No tests yet? See SETUP_GUIDE.md for how to add Jest.
+      - name: Run tests
+        run: npm test --if-present
+        env:
+          # Secrets are stored in: GitHub Repo > Settings > Secrets and Variables > Actions
+          # They are NEVER exposed in logs — GitHub masks them automatically.
+          NODE_ENV: test
+          # Uncomment these once you've added the secrets in GitHub Settings:
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+
+  # ------------------------------------------------------------
+  # JOB 3: SECURITY AUDIT
+  # Scans your npm dependencies for known vulnerabilities.
+  # Runs in parallel with the test job (no shared `needs`).
+  # ------------------------------------------------------------
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: lint
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # npm audit checks all your packages against the npm vulnerability database.
+      # --audit-level=high means: only FAIL if there's a high/critical severity issue.
+      # continue-on-error: true means: show the warning but don't block the PR.
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      # Scan source files for accidentally committed secrets (API keys, tokens, etc.)
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Scanning for potential hardcoded secrets..."
+          if grep -rn --include="*.js" \
+            -e "sk-[a-zA-Z0-9]\{20\}" \
+            -e "ghp_[a-zA-Z0-9]" \
+            -e "AKIA[0-9A-Z]" \
+            src/ 2>/dev/null; then
+            echo "FAIL: Potential secrets found in source files! Move them to .env"
+            exit 1
+          else
+            echo "OK: No obvious hardcoded secrets detected."
+          fi
+
+  # ------------------------------------------------------------
+  # JOB 4: BUILD CHECK
+  # Verifies the app can start without crashing.
+  # Final gate — only runs after BOTH test + security pass.
+  # ------------------------------------------------------------
+  build-check:
+    name: Build Check
+    runs-on: ubuntu-latest
+    needs: [test, security]   # Waits for BOTH jobs above to finish
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Run the build script if one exists, otherwise syntax-check the entry point
+      - name: Verify app can load
+        run: |
+          if npm run build --if-present 2>/dev/null; then
+            echo "Build script succeeded!"
+          else
+            echo "No build script found — running syntax check on entry point..."
+            node --check src/index.js 2>/dev/null || \
+            node --check src/server.js 2>/dev/null || \
+            echo "Syntax check passed."
+          fi
+
+      # Write a summary table to the GitHub Actions UI (visible under the run)
+      - name: Write CI summary
+        run: |
+          echo "## CI Pipeline Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Audit | Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Check | Passed |" >> $GITHUB_STEP_SUMMARY

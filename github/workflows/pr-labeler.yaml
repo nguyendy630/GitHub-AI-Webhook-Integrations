@@ -1,0 +1,42 @@
+# ============================================================
+# PR Labeler: Auto-label Pull Requests
+# ============================================================
+# This file lives at: .github/workflows/pr-labeler.yml
+#
+# WHAT THIS DOES:
+#   When you open a Pull Request, GitHub looks at which files
+#   changed and automatically applies labels like "src", "config",
+#   or "docs". This helps reviewers know at a glance what changed.
+#
+# REQUIRES: You must create these labels in your repo first!
+#   GitHub Repo → Issues → Labels → New label
+# ============================================================
+
+name: PR Labeler
+
+on:
+  pull_request:
+    types: [opened, synchronize]   # runs when PR is opened or new commits pushed
+
+jobs:
+  label:
+    name: Label PR by changed files
+    runs-on: ubuntu-latest
+
+    # This permission lets the workflow write labels to your PR
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # This action reads .github/labeler.yml (defined below) and
+      # applies labels based on which files were changed in the PR
+      - name: Apply labels
+        uses: actions/labeler@v5
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          # GITHUB_TOKEN is automatically provided by GitHub — no setup needed!
+          # It has limited permissions scoped to just this repository.

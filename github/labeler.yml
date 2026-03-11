@@ -1,0 +1,41 @@
+# ============================================================
+# .github/labeler.yml — PR Label Rules
+# ============================================================
+# This config is used by the pr-labeler.yml workflow.
+# Format: "label-name": list of file glob patterns
+#
+# When a PR touches any matching file, that label is applied.
+# ============================================================
+
+# Applied when any file in src/ is changed
+"src":
+  - changed-files:
+    - any-glob-to-any-file: "src/**"
+
+# Applied when package.json or package-lock.json changes
+"dependencies":
+  - changed-files:
+    - any-glob-to-any-file:
+      - "package.json"
+      - "package-lock.json"
+
+# Applied when docs or README changes
+"docs":
+  - changed-files:
+    - any-glob-to-any-file:
+      - "README.md"
+      - "**/*.md"
+
+# Applied when CI/GitHub Actions configs change
+"ci":
+  - changed-files:
+    - any-glob-to-any-file: ".github/**"
+
+# Applied when config files change (vercel.json, .env.template, etc.)
+"config":
+  - changed-files:
+    - any-glob-to-any-file:
+      - "*.json"
+      - "*.yml"
+      - "*.yaml"
+      - ".env*"
