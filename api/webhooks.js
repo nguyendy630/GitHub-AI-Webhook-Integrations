@@ -1,8 +1,8 @@
 // Ocotokit Object.
 require("dotenv").config();
 const express = require("express");
-const logger = require("./utils/logger");
-const webhookHandler = require("./webhooks/handler");
+const logger = require("src/utils/logger.js");
+const webhookHandler = require("src/webhooks/handler");
 const { Webhooks } = require("@octokit/webhooks");
 
 const app = express();

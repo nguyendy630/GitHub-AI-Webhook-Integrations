@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { Webhooks } = require("@octokit/webhooks");
-const logger = require("./utils/logger");
+const logger = require("src/utils/logger.js");
 
 const app = express();
 const port = process.env.PORT || 3000;
