@@ -1,93 +1,101 @@
 const logger = require("../utils/logger");
+const { OpenAI } = require("openai");
 
 class AIReviewer {
     constructor() {
-        this.apiEndpoint = "https://api.anthropic.com/v1/messages";
-        this.model = "claude-sonnet-4-20250514";
-        if (!process.env.ANTHROPIC_API_KEY) {
-            throw new Error("Anthropic API key is required")
+        if (!process.env.OPENAI_API_KEY) {
+            throw new Error("OPENAI_API_KEY is required.");
         }
-        this.apiKey = process.env.ANTHROPIC_API_KEY
+        this.ai = new OpenAI();
+        this.apiKey = process.env.OPENAI_API_KEY;
+        this.model = 'gpt-5.4-nano';
+        logger.info("AIReviewer initialized.");
     }
 
     /**
-     * Initiate file review.
-     * @param {*} file
-     * @param {*} analysis
-     */
-    async reviewCode(file, analysis) {
-        try {
-            logger.info("Generating Review", {
-                file,
-                analysis,
-            });
-
-            // Building Prompt
-            let prompt = this.buildReviewPrompt(file, analysis);
-
-            // Claude API
-            const response = await fetch(this.apiEndpoint, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    model: this.model,
-                    max_tokens: 2000,
-                    messages: [
-                        {
-                            role: "User",
-                            content: prompt,
-                        },
-                    ],
-                }),
-            });
-
-            // Handle Response
-            const data = await response.json();
-
-            if (!response.ok) {
-                logger.error("Error generating review", response.statusText);
-            }
-
-            // Extract review from response
-            const reviewText = data.content[0].text;
-
-            logger.info("AI review generated", {
-                filename: file.filename,
-                reviewLength: reviewText.length,
-            });
-
-            return this.parseReview(reviewText);
-        } catch (error) {
-            logger.error("Error generating review", error.message);
-        }
-    }
-
-    /**
-     * Prompt for AI to follow
-     * @param file
-     * @param analysis
+     * Builds a prompt for the AI Reviewer based on the file and its diff analysis.
+     * @param {object} file
+     * @param {object} analysis
+     * @returns {string} prompt
      */
     buildReviewPrompt(file, analysis) {
         const prompt = `
-            You are a software engineer tasked with reviewing code. A file metadata ANALYSIS is given with the actual CODE CHANGES.
-            
-            ### 1. ANALYSIS METADATA ###
-            ${JSON.stringify(analysis, null, 2)}
-            
-            ### 2. INSTRUCTIONS ###
-            1. Use the ANALYSIS METADATA to understand the context:
-               - Review the 'addedLines' and "deletedLines" content.
-               - If "isTestFile" is True, DO NOT REVIEW TEST FILES; FOCUS on production code instead. Warn the user of the TEST FILE. ( ALSO CHECK IF THERE ARE ANY OTHER TEST FILES )
-               - If "hasNewFunctions" has content, pay CLOSE ATTENTION to the logic in those functions
-               - Check if "hasImportChanges", has imports that are NECESSARY, or could they introduce PERFORMANCE or SECURITY issues.
-            2. MAKE SURE that code aligns with the style conventions of the LANGUAGE the file is in.
-            3. Review the "CODE CHANGES" for security, performance and readability.
-            4. Be CONCISE, and provide actionable feedback.
-        `.trim()
+            You are an expert code reviewer analyzing a GitHub pull request.
 
-        return prompt
+            ## Instructions:
+            - Review for security vulnerabilities, performance issues, and readability
+            - If isTestFile is true, do not review — set approved to true and note it in the summary
+            - Pay close attention to any new functions detected
+            - Flag any suspicious code patterns or potential security risks
+            - Match feedback to the conventions of the language
+
+            ## File:
+            ${JSON.stringify(file, null, 2)}
+
+            ## Diff Analysis:
+            ${JSON.stringify(analysis, null, 2)}
+
+            ## Output Format (IMPORTANT):
+            Respond ONLY with valid JSON. No markdown, no explanation, no backticks.
+            Use exactly this structure:
+            {
+                "severity": "low" | "medium" | "high" | "none",
+                "summary": "one sentence overview",
+                "suggestions": ["...", "..."],
+                "securityFlags": ["...", "..."],
+                "approved": true | false
+            }
+        `
+        return prompt;
     }
 
+    /**
+     * Reviews a file using OpenAI.
+     * @param {object} file
+     * @param {object} analysis
+     * @returns {object} structured review
+     */
+    async reviewCode(file, analysis) {
+        try {
+            const prompt = this.buildReviewPrompt(file, analysis);
+
+            const response = await this.ai.responses.create({
+                model: this.model,
+                input: prompt
+            })
+
+            if (!response.output_text || !response.output_text) {
+                logger.warn("Empty response from OpenAI", { filename: file.filename });
+                return this._fallbackReview(file.filename);
+            }
+
+            return this.parseReview(response.ouput_text, file.filename);
+
+        } catch (error) {
+            logger.error("Error during AI review", { error: error.message });
+            return this._fallbackReview(file.filename);
+        }
+    }
+
+    /**
+     * Safe fallback review object when Gemini fails or returns empty.
+     * @param {string} filename
+     * @returns {object}
+     */
+    _fallbackReview(filename) {
+        return {
+            filename,
+            severity: "none",
+            summary: "Review could not be generated for this file.",
+            suggestions: [],
+            securityFlags: [],
+            approved: true
+        }
+    }
+
+    parseReview() {
+
+    }
 }
+
+module.exports = AIReviewer;

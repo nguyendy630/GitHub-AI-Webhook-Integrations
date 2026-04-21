@@ -9,7 +9,7 @@ const eventStats = {
     pull_request_review: 0,
     other: 0,
     pull: 0
-};
+}
 
 /**
  * Handles GitHub webhook events.
