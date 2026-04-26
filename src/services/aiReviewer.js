@@ -125,7 +125,28 @@ class AIReviewer {
             logger.error("Failed to parse AI reviewText response", { error: error.message, filename });
             return this._fallbackReview(filename);
         }
+    }
 
+    /**
+     * Decides which files from getPRFiles() should be reviewed by the AI.
+     * @param {*} file from getPRFiles() method.
+     * @returns {boolean}
+     */
+    shouldReviewFile(file) {
+        // Files to skip.
+        const skipFiles = ["package-lock.json", "yarn.lock"];
+        const skipExtensions = [".min.js", ".map", ".lock"];
+
+        // Return false if the file is undefined or null.
+        if (!file.patch) { return false; }
+
+        // Checking for zero additions an deletions
+        if (file.additions === 0) { return false; }
+
+        // Files to skip
+        if (skipFiles.includes(file.filename) || skipExtensions.some(ext => file.filename.endsWith(ext))) { return false; }
+
+        return true;
     }
 }
 
