@@ -61,7 +61,7 @@ class AIReviewer {
 
             const response = await this.ai.responses.create({
                 model: this.model,
-                input: prompt
+                input: prompt,
             })
 
             if (!response.output_text || !response.output_text) {
@@ -69,10 +69,10 @@ class AIReviewer {
                 return this._fallbackReview(file.filename);
             }
 
-            return this.parseReview(response.ouput_text, file.filename);
+            return this.parseReview(response.output_text, file.filename);
 
         } catch (error) {
-            logger.error("Error during AI review", { error: error.message });
+            logger.error("Error during AI review", { error: error });
             return this._fallbackReview(file.filename);
         }
     }
@@ -93,7 +93,38 @@ class AIReviewer {
         }
     }
 
-    parseReview() {
+    /**
+     * Parses the AI review response into a structured format.
+     * @param {string} reviewText
+     * @param {string} filename
+     * @returns {object}
+     */
+    parseReview(reviewText, filename) {
+        try {
+            // Removing markdown fencing if it is present.
+            let review = reviewText.replace(/```json|```/g, '').replace(/```/g, "").trim();
+            review = JSON.parse(review);
+
+
+            // Basic validation of the reviewText structure (Severity and Summary are required)
+            if (!review || typeof review !== "object" || !review.severity || !review.summary) {
+                logger.warn("Invalid reviewText format from OpenAI", { filename, reviewText });
+                return this._fallbackReview(filename);
+            }
+
+            return {
+                filename,
+                severity: review.severity,
+                summary: review.summary,
+                suggestions: review.suggestions || [],
+                securityFlags: review.securityFlags || [],
+                approved: review.approved ?? true
+            }
+
+        } catch (error) {
+            logger.error("Failed to parse AI reviewText response", { error: error.message, filename });
+            return this._fallbackReview(filename);
+        }
 
     }
 }
