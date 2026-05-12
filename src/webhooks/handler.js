@@ -1,6 +1,8 @@
 const logger = require("../utils/logger");
 const services = require("../services/services");
 const diffParser = require("../services/diffParser");
+const AIReviewer = require("../services/aiReviewer");
+const aiReviewer = new AIReviewer();
 
 // Monitor event stats.
 const eventStats = {
@@ -127,19 +129,28 @@ class WebhookHandler {
             pr: prInfo.number,
             repo: prInfo.repo,
         });
-        
-        const diff = await services.getPRDiff(prInfo.repoOwner, prInfo.repoName, prInfo.number);
-        const diffAnalysis = await diffParser.analyzeDiff(diff);
-        
-        console.log(diffAnalysis);
-        
-        // In Phase 2+, we'll:
-        // 1. Add to a job queue (Bull, BullMQ, or Redis)
-        // 2. Worker processes pick up jobs
-        // 3. Fetch PR diff and analyze
-        // 4. Generate AI suggestions
-        // 5. Post back to GitHub
-        
+
+        // Collecting Files from PR Diff
+        const file = await services.getPRFiles(prInfo.repoOwner, prInfo.repoName, prInfo.number);
+        const filesToReview = files.filter(file => aiReviewer.shouldReviewFile(file.filename));
+
+        // Parallel Loop - Each file goes through two steps (analysis and review).
+        const reviewPromises = filesToReview.map(async (file) => {
+            const analysis = diffParser.analyzeDiff(file.patch);
+            return await aiReviewer.reviewCode(file, analysis)
+        })
+
+        const results = await Promise.allSettled(reviewPromises);
+
+        // Filter out the sucessful reviews and log stats.
+        const reviews = results.filter(result => result.status === "fulfilled").map(result => result.value);
+
+        logger.info("Reviews completed", {
+            total: filesToReview.length,
+            succeeded: reviews.length,
+            failed: filesToReview.length - reviews.length
+        });
+
         // Simulate async work
         await new Promise((resolve) => setTimeout(resolve, 1000));
         logger.info("Review queued successfully", { pr: prInfo.number });

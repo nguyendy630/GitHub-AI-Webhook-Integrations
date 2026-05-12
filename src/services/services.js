@@ -24,7 +24,6 @@ class GithubService {
         return this.octokit;
     }
 
-
     /**
      *  Fetches detailed pull request information from GitHub.
      * @param {string} owner
