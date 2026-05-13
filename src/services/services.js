@@ -24,7 +24,6 @@ class GithubService {
         return this.octokit;
     }
 
-
     /**
      *  Fetches detailed pull request information from GitHub.
      * @param {string} owner
@@ -209,6 +208,35 @@ class GithubService {
             return data;
         } catch (error) {
             logger.error("Error creating review comment", {
+                error: error.message,
+            });
+            throw error;
+        }
+    }
+
+    /**
+     * Posts a summary comment on a pull request (not an inline review comment).
+     * @param {string} owner
+     * @param {string} repo
+     * @param {number} prNumber
+     * @param {string} commentBody
+     * @returns {object} comment data from GitHub API
+     */
+    async postPRComment(owner, repo, prNumber, commentBody) {
+        const octokit = await this.getOctoKit();
+        try {
+            logger.info("Posting PR comment", { owner, repo, prNumber });
+
+            const { data } = await octokit.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: commentBody,
+            });
+
+            return data;
+        } catch (error) {
+            logger.error("Error posting PR comment", {
                 error: error.message,
             });
             throw error;

@@ -1,6 +1,9 @@
 const logger = require("../utils/logger");
 const services = require("../services/services");
 const diffParser = require("../services/diffParser");
+const AIReviewer = require("../services/aiReviewer");
+const aiReviewer = new AIReviewer();
+const { formatReviewsAsMarkdown } = require("../utils/commentFormatter");
 
 // Monitor event stats.
 const eventStats = {
@@ -127,22 +130,56 @@ class WebhookHandler {
             pr: prInfo.number,
             repo: prInfo.repo,
         });
-        
-        const diff = await services.getPRDiff(prInfo.repoOwner, prInfo.repoName, prInfo.number);
-        const diffAnalysis = await diffParser.analyzeDiff(diff);
-        
-        console.log(diffAnalysis);
-        
-        // In Phase 2+, we'll:
-        // 1. Add to a job queue (Bull, BullMQ, or Redis)
-        // 2. Worker processes pick up jobs
-        // 3. Fetch PR diff and analyze
-        // 4. Generate AI suggestions
-        // 5. Post back to GitHub
-        
-        // Simulate async work
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        logger.info("Review queued successfully", { pr: prInfo.number });
+
+        // Collecting Files from PR Diff
+        const files = await services.getPRFiles(prInfo.repoOwner, prInfo.repoName, prInfo.number);
+        const filesToReview = files.filter(file => aiReviewer.shouldReviewFile(file));
+
+        // Parallel Loop - Each file goes through two steps (analysis and review).
+        const reviewPromises = filesToReview.map(async (file) => {
+            const analysis = diffParser.analyzeDiff(file.patch);
+            return await aiReviewer.reviewCode(file, analysis)
+        })
+
+        const results = await Promise.allSettled(reviewPromises);
+
+        // Filter out the sucessful reviews and log stats.
+        const reviews = results.filter(result => result.status === "fulfilled").map(result => result.value);
+
+        logger.info("Reviews completed", {
+            total: filesToReview.length,
+            succeeded: reviews.length,
+            failed: filesToReview.length - reviews.length
+        });
+
+        // Phase 3: Format and post PR comment if issues found
+        const commentBody = formatReviewsAsMarkdown(reviews);
+        if (commentBody) {
+            try {
+                await services.postPRComment(
+                    prInfo.repoOwner,
+                    prInfo.repoName,
+                    prInfo.number,
+                    commentBody
+                );
+                logger.info("PR comment posted successfully", {
+                    pr: prInfo.number,
+                    repo: prInfo.repo,
+                });
+            } catch (error) {
+                logger.error("Failed to post PR comment", {
+                    error: error.message,
+                    pr: prInfo.number,
+                    repo: prInfo.repo,
+                });
+                // Do not rethrow—webhook continues (resilient error handling)
+            }
+        } else {
+            logger.info("No issues found; PR comment not posted", {
+                pr: prInfo.number,
+                repo: prInfo.repo,
+            });
+        }
     }
 }
 

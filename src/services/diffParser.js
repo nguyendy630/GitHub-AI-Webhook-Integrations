@@ -5,6 +5,17 @@ const logger = require("../utils/logger");
  * Diffparser service to parse unified diffs from pull requests.
  */
 class DiffParser {
+    constructor() {
+        this.getAddedLines = this.getAddedLines.bind(this);
+        this.getDeletedLines = this.getDeletedLines.bind(this);
+        this.detectLanguage = this.detectLanguage.bind(this);
+        this.isTestFile = this.isTestFile.bind(this);
+        this.containsNewFunctions = this.containsNewFunctions.bind(this);
+        this.containsImports = this.containsImports.bind(this);
+        this.hasTestChanges = this.hasTestChanges.bind(this);
+        this.analyzeDiff = this.analyzeDiff.bind(this);
+    }
+
     /**
      * Parses patch for added lines.
      * @param {string} patch
@@ -23,6 +34,7 @@ class DiffParser {
             const hunkMatch = line.match(
                 /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/,
             );
+
             if (hunkMatch) {
                 newLineNumber = parseInt(hunkMatch[1], 10);
                 continue;
@@ -55,7 +67,7 @@ class DiffParser {
      */
     getDeletedLines(patch) {
         const lines = patch.split("\n");
-        const addedLines = [];
+        const deletedLines = [];
 
         let newLineNumber = 0;
 
@@ -63,17 +75,16 @@ class DiffParser {
             const line = lines[i];
 
             // Hunk header
-            const hunkMatch = line.match(
-                /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/,
-            );
+            const hunkMatch = line.match(/^@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@/);
+
             if (hunkMatch) {
                 newLineNumber = parseInt(hunkMatch[1], 10);
                 continue;
             }
 
-            // Added line
+            // Removed line
             if (line.startsWith("-") && !line.startsWith("---")) {
-                addedLines.push({
+                deletedLines.push({
                     lineNumber: newLineNumber,
                     content: line.slice(1),
                 });
@@ -89,27 +100,67 @@ class DiffParser {
             }
         }
 
-        return addedLines;
+        return deletedLines;
     }
 
     /**
-     * Grabs the extension of the filename to detect language.
-     * @param {string} filename
+     * Detects the file language by extracting the file extension from the patch.
+     * @param {string} patch - The unified diff patch
+     * @returns {string|null} Language code (e.g., 'js', 'py', 'java') or null if not detected
      */
     detectLanguage(patch) {
         for (const line of patch.split("\n")) {
             const trimmed = line.trim();
 
             if (trimmed.startsWith("+++")) {
-                return trimmed
+                // Extract the filename from the +++ line
+                let filename = trimmed
                     .replace("+++", "")
                     .replace("b/", "")
-                    .trim()
-                    .split(".")
-                    .pop();
+                    .trim();
+
+                // Get the file extension
+                const lastDotIndex = filename.lastIndexOf(".");
+                if (lastDotIndex === -1) {
+                    // No extension found
+                    return null;
+                }
+
+                const extension = filename.substring(lastDotIndex + 1).toLowerCase();
+
+                // Map common file extensions to language codes
+                const extensionMap = {
+                    // JavaScript/TypeScript
+                    js: "js",
+                    jsx: "js",
+                    ts: "ts",
+                    tsx: "ts",
+                    // Python
+                    py: "py",
+                    // Java
+                    java: "java",
+                    // Go
+                    go: "go",
+                    // Rust
+                    rs: "rust",
+                    // Ruby
+                    rb: "ruby",
+                    html: "html",
+                    htm: "html",
+                    css: "css",
+                    scss: "scss",
+                    sass: "scss",
+                    less: "less",
+                    // SQL
+                    sql: "sql",
+                };
+
+                // Return mapped language code or fallback to extension itself
+                return extensionMap[extension] || extension;
             }
         }
-        return null;
+
+        return "Unable to detect language"; // Fallback if no +++ line is found
     }
 
     /**
@@ -126,9 +177,10 @@ class DiffParser {
             /_test\./, // calculator_test.js
             /\.test$/, // calculator.test (no extension)
             /\.spec$/, // calculator.spec
-            /test_.*\.py$/, // test_calculator.py (Python)
-            /.*_test\.py$/, // calculator_test.py (Python)
+            /^test_.*\.[^.]+$/, // test_calculator.js, test_calculator.py
+            /^.*_test\.[^.]+$/, // calculator_test.js, calculator_test.py
         ];
+
         return testPatterns.some((pattern) => pattern.test(filename));
     }
 
@@ -205,7 +257,11 @@ class DiffParser {
 
         // Iterate through each added line.
         addedLines.forEach((lineObj) => {
-            const currentContext = lineObj.context;
+            const currentContext = lineObj.context ?? lineObj.content ?? "";
+
+            if (!currentContext) {
+                return;
+            }
 
             // Skip if line matches control flow patterns
             if (excludePatterns.commonPatterns.test(currentContext)) {
@@ -245,7 +301,7 @@ class DiffParser {
      * 
      * Any other remaining patterns not found will be detected using AI instead.
      *
-     * @param {Array<{ lineNumber: number, context: string }>} addedLines
+     * @param {String} addedLines
      * @param {string} language
      */
     containsImports(addedLines, language) {
@@ -258,19 +314,22 @@ class DiffParser {
             rust: /use\s+/,
             ruby: /require\s+/,
         };
-        // List of imports
-        let addedImports = [];
 
-        addedLines.forEach((lineObj) => {
-            const line = lineObj.context;
+        let importPattern = patterns[language];
 
-            // Testing for import patterns.
-            if (patterns[language].test(line)) {
-                addedImports.push(line);
-            }
+        if (!importPattern) {
+            logger.warn(`No import patterns defined for language: ${language}`);
+            return false;
+        }
+
+        if (typeof addedLines === "string") {
+            return importPattern.test(addedLines);
+        }
+
+        return addedLines.some((lineObj) => {
+            const line = lineObj.context ?? lineObj.content ?? "";
+            return importPattern.test(line);
         });
-
-        return addedImports;
     }
 
     /**
@@ -286,7 +345,7 @@ class DiffParser {
      * @param {Array<{ lineNumber: number, context: string }>} addedLines
      * returns {Array<{ lineNumber: number, context: string }>} addedTest
      */
-    hasTestChanges(addedLines) {
+    hasTestChanges(addedLines, language) {
         const testPatterns = {
             js: /describe\s*\(/,
             ts: /describe\s*\(/,
@@ -299,13 +358,22 @@ class DiffParser {
 
         let addedTest = [];
 
-        addedLines.forEach((lineObj) => {
-            const line = lineObj.context;
+        const testPattern = testPatterns[language];
 
-            if (testPatterns[language].match(line)) {
+        if (!testPattern) {
+            logger.warn(`No test patterns defined for language: ${language}`);
+            return false;
+        }
+
+        addedLines.forEach((lineObj) => {
+            const line = lineObj.context ?? lineObj.content ?? "";
+
+            if (testPattern.test(line)) {
                 addedTest.push(line);
             }
         });
+
+        return addedTest.length > 0;
     }
 
     /**
@@ -320,35 +388,33 @@ class DiffParser {
      */
     analyzeDiff(patch) {
         logger.info("Analyzing diff");
+        const addedLines = this.getAddedLines(patch);
+        const deletedLines = this.getDeletedLines(patch);
+        const language = this.detectLanguage(patch);
+
         const parsed = {
             // 1. Added lines
-            addedLines: this.getAddedLines(patch),
+            addedLines,
 
             // 2. Deleted lines
-            deletedLines: this.getDeletedLines(patch),
+            deletedLines,
 
             // 3. File metadata
-            filename: this.detectLanguage(patch),
-            isTestFile: this.isTestFile(this.detectLanguage(patch)),
+            filename: language,
+            isTestFile: this.isTestFile(language),
 
             // 4. Basic patterns
-            hasNewFunctions: this.containsNewFunctions(
-                this.getAddedLines(patch),
-                this.detectLanguage(patch),
-            ),
+            hasNewFunctions: this.containsNewFunctions(addedLines, language),
 
             // Import changes or new imports.
-            hasImportChanges: this.containsImports(
-                this.getAddedLines(patch),
-                this.detectLanguage(patch),
-            ),
+            hasImportChanges: this.containsImports(addedLines, language),
 
             // Checking for test changes
-            hasTestChanges: this.isTestFile(this.detectLanguage(patch))
-                ? this.hasTestChanges(this.getAddedLines(patch))
+            hasTestChanges: this.isTestFile(language)
+                ? this.hasTestChanges(addedLines, language)
                 : false,
         };
-        
+
         return parsed;
     }
 }
