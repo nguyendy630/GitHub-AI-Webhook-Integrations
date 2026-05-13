@@ -1,4 +1,4 @@
-const { containsImports } = require('../src/services/diffParser');
+const { containsImports } = require('../../src/services/diffParser');
 require('jest').test;
 
 test('containsImports correctly identifies if a diff contains import statements', () => {

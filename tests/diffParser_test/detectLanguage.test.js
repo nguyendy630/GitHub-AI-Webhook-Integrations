@@ -1,4 +1,4 @@
-const { detectLanguage } = require('../src/services/diffParser');
+const { detectLanguage } = require('../../src/services/diffParser');
 require('jest').test
 
 test('detectLanguage correctly identifies the programming language based on the file extension', () => {

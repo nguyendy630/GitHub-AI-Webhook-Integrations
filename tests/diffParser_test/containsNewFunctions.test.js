@@ -1,4 +1,4 @@
-const { containsNewFunctions } = require('../src/services/diffParser');
+const { containsNewFunctions } = require('../../src/services/diffParser');
 
 require('jest').test;
 

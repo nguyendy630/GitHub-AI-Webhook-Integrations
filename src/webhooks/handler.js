@@ -3,6 +3,7 @@ const services = require("../services/services");
 const diffParser = require("../services/diffParser");
 const AIReviewer = require("../services/aiReviewer");
 const aiReviewer = new AIReviewer();
+const { formatReviewsAsMarkdown } = require("../utils/commentFormatter");
 
 // Monitor event stats.
 const eventStats = {
@@ -131,8 +132,8 @@ class WebhookHandler {
         });
 
         // Collecting Files from PR Diff
-        const file = await services.getPRFiles(prInfo.repoOwner, prInfo.repoName, prInfo.number);
-        const filesToReview = files.filter(file => aiReviewer.shouldReviewFile(file.filename));
+        const files = await services.getPRFiles(prInfo.repoOwner, prInfo.repoName, prInfo.number);
+        const filesToReview = files.filter(file => aiReviewer.shouldReviewFile(file));
 
         // Parallel Loop - Each file goes through two steps (analysis and review).
         const reviewPromises = filesToReview.map(async (file) => {
@@ -151,9 +152,34 @@ class WebhookHandler {
             failed: filesToReview.length - reviews.length
         });
 
-        // Simulate async work
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        logger.info("Review queued successfully", { pr: prInfo.number });
+        // Phase 3: Format and post PR comment if issues found
+        const commentBody = formatReviewsAsMarkdown(reviews);
+        if (commentBody) {
+            try {
+                await services.postPRComment(
+                    prInfo.repoOwner,
+                    prInfo.repoName,
+                    prInfo.number,
+                    commentBody
+                );
+                logger.info("PR comment posted successfully", {
+                    pr: prInfo.number,
+                    repo: prInfo.repo,
+                });
+            } catch (error) {
+                logger.error("Failed to post PR comment", {
+                    error: error.message,
+                    pr: prInfo.number,
+                    repo: prInfo.repo,
+                });
+                // Do not rethrow—webhook continues (resilient error handling)
+            }
+        } else {
+            logger.info("No issues found; PR comment not posted", {
+                pr: prInfo.number,
+                repo: prInfo.repo,
+            });
+        }
     }
 }
 

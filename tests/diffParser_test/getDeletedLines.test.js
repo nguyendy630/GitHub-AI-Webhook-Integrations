@@ -1,4 +1,4 @@
-const { getDeletedLines} = require('../src/services/diffParser');
+const { getDeletedLines} = require('../../src/services/diffParser');
 require('jest').test;
 
 test('getDeletedLines correctly identifies deleted lines in a diff', () => {

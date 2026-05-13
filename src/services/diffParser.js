@@ -177,9 +177,10 @@ class DiffParser {
             /_test\./, // calculator_test.js
             /\.test$/, // calculator.test (no extension)
             /\.spec$/, // calculator.spec
-            /test_.*\.py$/, // test_calculator.py (Python)
-            /.*_test\.py$/, // calculator_test.py (Python)
+            /^test_.*\.[^.]+$/, // test_calculator.js, test_calculator.py
+            /^.*_test\.[^.]+$/, // calculator_test.js, calculator_test.py
         ];
+
         return testPatterns.some((pattern) => pattern.test(filename));
     }
 

@@ -1,4 +1,4 @@
-const { hasTestChanges } = require('../src/services/diffParser');
+const { hasTestChanges } = require('../../src/services/diffParser');
 
 require('jest').test;
 

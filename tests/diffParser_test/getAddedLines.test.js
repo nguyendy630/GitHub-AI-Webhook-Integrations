@@ -1,4 +1,4 @@
-const { getAddedLines } = require('../src/services/diffParser');
+const { getAddedLines } = require('../../src/services/diffParser');
 require('jest').test;
 
 test('getAddedLines correctly identifies added lines in a diff', () => {
