@@ -18,7 +18,7 @@ class GithubService {
         if (!this.octokit) {
             const { Octokit } = await import("@octokit/rest");
             this.octokit = new Octokit({
-                auth: process.env.GITHUB_TOKEN,
+                auth: process.env.GH_TOKEN,
             });
         }
         return this.octokit;
