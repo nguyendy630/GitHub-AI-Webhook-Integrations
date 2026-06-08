@@ -54,6 +54,9 @@ app.post("/api/webhooks", async (req, res) => {
         try {
             console.log(req.body)
 
+            // the handler still awaits the fetch, keeping the serverless invocation active longer (cost/latency) 
+            // and potentially reducing reliability if the platform freezes/terminates after responding. Prefer fire-and-forget dispatch (
+            // e.g., start the request without awaiting, with .catch(...) for logging) or enqueue to a proper background system.
             const response = await fetch(process.env.APP_BASE_URL + "/api/review-jobs", {
                 method: "POST",
 
@@ -62,17 +65,11 @@ app.post("/api/webhooks", async (req, res) => {
                     "X-GitHub-Event": event,
                     "X-GitHub-Delivery": id,
                     "X-Hub-Signature-256": signature,
+                    "X-Review-Job-Secret": process.env.REVIEW_JOBS_SECRET || "",
                 },
 
                 body: JSON.stringify(req.body),
-            });
-
-            logger.info("Webhook forwarded to review-jobs", {
-                event,
-                id,
-                status: response.status,
-            });
-
+            }).then(res => console.log(res.json()));
 
         } catch (error) {
             logger.error("Error processing webhook", {
