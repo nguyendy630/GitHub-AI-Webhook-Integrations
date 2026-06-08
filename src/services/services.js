@@ -76,32 +76,50 @@ class GithubService {
     async getPRFiles(owner, repo, prNumber) {
         const octokit = await this.getOctoKit();
         try {
-            logger.info("Fetching PR files", { owner, repo, prNumber });
+            logger.info("Fetching PR files", { owner, repo, prNumber, typeOfPrNumber: typeof prNumber });
 
-            const { data } = await octokit.pulls.listFiles({
+            const response = await octokit.rest.pulls.listFiles({
                 owner,
                 repo,
-                pull_number: prNumber,
-                per_page: 100, // Max Per Page.
+                pull_number: Number(prNumber), // ensure it's a number
+                per_page: 100,
             });
 
-            // Maps over data from Github API to get file info.
+            const { data, status, headers, url } = response;
+
+            logger.info("PR Files received", {
+                owner,
+                repo,
+                prNumber,
+                fileCount: data.length,
+                status,
+            });
+
             return data.map((file) => ({
                 filename: file.filename,
-                status: file.status, // 'added', 'removed', 'modified', 'renamed'
+                status: file.status,
                 additions: file.additions,
                 deletions: file.deletions,
                 changes: file.changes,
-                patch: file.patch, // The actual diff
+                patch: file.patch,
                 blobUrl: file.blob_url,
                 rawUrl: file.raw_url,
-                previousFilename: file.previous_filename, // if renamed
+                previousFilename: file.previous_filename,
             }));
+
         } catch (error) {
-            logger.error("Error fetching PR files", { error: error.message });
+            logger.error("Error fetching PR files", {
+                message: error.message,
+                status: error.status,
+                stack: error.stack,
+                request: error.request,
+                response: error.response?.data,
+            });
+
             throw error;
         }
     }
+
 
     // REQUIRES TESTING
     /**

@@ -3,6 +3,9 @@
     "functions": {
         "api/webhooks.js": {
             "maxDuration": 30
+        },
+        "api/review-jobs.js": {
+            "maxDuration": 30
         }
     },
     "routes": [
@@ -17,6 +20,10 @@
         {
             "src": "/api/webhooks",
             "dest": "/api/webhooks.js"
+        },
+        {
+            "src": "/api/review-jobs",
+            "dest": "/api/review-jobs.js"
         }
     ]
 }

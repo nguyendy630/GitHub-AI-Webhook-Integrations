@@ -11,9 +11,11 @@ app.use(express.json())
 async function getWebhooks() {
     if (!getWebhooks.instance) {
         const { Webhooks } = await import("@octokit/webhooks");
+
         getWebhooks.instance = new Webhooks({
             secret: process.env.GH_WEBHOOK,
         });
+
     }
     return getWebhooks.instance;
 }
@@ -49,17 +51,36 @@ app.post("/api/webhooks", async (req, res) => {
         res.status(200).json({ message: "Webhook received", received: true });
 
         // Process the webhook asynchronously.
-        setImmediate(async () => {
-            try {
-                await webhookHandler.handleEvent(event, req.body)
-            } catch (error) {
-                logger.error("Error processing webhook", {
-                    event,
-                    id,
-                    error: error.message,
-                });
-            }
-        });
+        try {
+            console.log(req.body)
+
+            const response = await fetch(process.env.APP_BASE_URL + "/api/review-jobs", {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-GitHub-Event": event,
+                    "X-GitHub-Delivery": id,
+                    "X-Hub-Signature-256": signature,
+                },
+
+                body: JSON.stringify(req.body),
+            });
+
+            logger.info("Webhook forwarded to review-jobs", {
+                event,
+                id,
+                status: response.status,
+            });
+
+
+        } catch (error) {
+            logger.error("Error processing webhook", {
+                event,
+                id,
+                error: error.message,
+            });
+        }
 
     } catch (error) {
         logger.error("Error handling webhook", { error: error.message });
