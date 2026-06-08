@@ -47,17 +47,16 @@ app.post("/api/webhooks", async (req, res) => {
             return res.status(401).json({ message: "Invalid signature" });
         }
 
-        // Respond Immediately to GitHub (to avoid timeouts).
-        res.status(200).json({ message: "Webhook received", received: true });
+
 
         // Process the webhook asynchronously.
         try {
-            console.log(req.body)
+            logger.info("Processing webhook", { event, id });
 
             // the handler still awaits the fetch, keeping the serverless invocation active longer (cost/latency) 
             // and potentially reducing reliability if the platform freezes/terminates after responding. Prefer fire-and-forget dispatch (
             // e.g., start the request without awaiting, with .catch(...) for logging) or enqueue to a proper background system.
-            const response = await fetch(process.env.APP_BASE_URL + "/api/review-jobs", {
+            const response = fetch(process.env.APP_BASE_URL + "/api/review-jobs", {
                 method: "POST",
 
                 headers: {
@@ -69,7 +68,12 @@ app.post("/api/webhooks", async (req, res) => {
                 },
 
                 body: JSON.stringify(req.body),
-            }).then(res => console.log(res.json()));
+            })
+            .then(() => logger.info("Dispatched review job", { event, id }))
+            .catch((error) => logger.error("Error dispatching review job", { event, id, error: error.message }));
+
+            // Respond Immediately to GitHub (to avoid timeouts).
+            res.status(200).json({ message: "Webhook received", received: true });
 
         } catch (error) {
             logger.error("Error processing webhook", {

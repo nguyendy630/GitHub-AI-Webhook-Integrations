@@ -29,8 +29,8 @@ app.post("/api/review-jobs", async (req, res) => {
 
 	try {
 		const prInfo = await webhookHandler.handleEvent(event, req.body);
+		logger.info("Review job completed", { pr: prInfo });
 		return res.status(200).json({ message: "Review completed", pr: req.body.pull_request.number });
-		
 	} catch (error) {
 		logger.error("Error processing review job", { error: error.message });
 		return res.status(500).json({ message: "Internal Server Error" });
