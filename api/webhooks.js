@@ -47,9 +47,6 @@ app.post("/api/webhooks", async (req, res) => {
             return res.status(401).json({ message: "Invalid signature" });
         }
 
-
-
-        // Process the webhook asynchronously.
         try {
             logger.info("Processing webhook", { event, id });
 

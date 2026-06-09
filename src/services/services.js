@@ -76,12 +76,12 @@ class GithubService {
     async getPRFiles(owner, repo, prNumber) {
         const octokit = await this.getOctoKit();
         try {
-            logger.info("Fetching PR files", { owner, repo, prNumber, typeOfPrNumber: typeof prNumber });
+            logger.info("Fetching PR files", { owner, repo, prNumber });
 
             const response = await octokit.rest.pulls.listFiles({
                 owner,
                 repo,
-                pull_number: Number(prNumber), // ensure it's a number
+                pull_number: prNumber, // ensure it's a number
                 per_page: 100,
             });
 
@@ -109,11 +109,10 @@ class GithubService {
 
         } catch (error) {
             logger.error("Error fetching PR files", {
-                message: error.message,
-                status: error.status,
-                stack: error.stack,
-                request: error.request,
-                response: error.response?.data,
+                error: error.message,
+                owner,
+                repo,
+                prNumber,
             });
 
             throw error;
