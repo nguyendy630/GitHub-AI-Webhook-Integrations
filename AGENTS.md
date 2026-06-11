@@ -130,6 +130,7 @@ Purpose: short, actionable instructions for AI coding agents working in this rep
 **How to run tests:**
 - Install: `npm install`
 - Run tests: `npm test` (uses `jest`)
+- To test endpoints test each one individually
 
 **Key files & folders:**
 - `api/` — webhook endpoints used by Vercel serverless routes.
