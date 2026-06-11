@@ -21,6 +21,7 @@ app.post("/api/review-jobs", async (req, res) => {
 			logger.warn("Unauthorized review job request", { hasHeader: !!secretHeader });
 			return res.status(401).json({ message: "Unauthorized" });
 		}
+
 	} else {
 		logger.warn("REVIEW_JOBS_SECRET not set — accepting requests (dev)");
 	}

@@ -44,30 +44,37 @@ app.post("/api/webhooks", async (req, res) => {
 
         if (!isValid) {
             logger.warn("Invalid webhook signature", { event, id });
-            return res.status(401).json({ message: "Invalid signature" });
+            return res.status(401).json({ message: "Invalid signature, not processing" });
         }
+
+        logger.info("Webhook verified", { event, id });
 
         try {
             logger.info("Processing webhook", { event, id });
+            logger.info("Dispatching review job", { event, id });
 
-            // the handler still awaits the fetch, keeping the serverless invocation active longer (cost/latency) 
-            // and potentially reducing reliability if the platform freezes/terminates after responding. Prefer fire-and-forget dispatch (
-            // e.g., start the request without awaiting, with .catch(...) for logging) or enqueue to a proper background system.
-            const response = fetch(process.env.APP_BASE_URL + "/api/review-jobs", {
-                method: "POST",
+            const baseURL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${process.env.PORT || 3000}`;
 
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-GitHub-Event": event,
-                    "X-GitHub-Delivery": id,
-                    "X-Hub-Signature-256": signature,
-                    "X-Review-Job-Secret": process.env.REVIEW_JOBS_SECRET || "",
-                },
+            try {
+                logger.info("About to fetch", { url: baseURL + "/api/review-jobs" });
 
-                body: JSON.stringify(req.body),
-            })
-            .then(() => logger.info("Dispatched review job", { event, id }))
-            .catch((error) => logger.error("Error dispatching review job", { event, id, error: error.message }));
+                const response = await fetch(baseURL + "/api/review-jobs", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-GitHub-Event": event,
+                        "X-GitHub-Delivery": id,
+                        "X-Hub-Signature-256": signature,
+                        "X-Review-Job-Secret": process.env.REVIEW_JOBS_SECRET || "",
+                    },
+                    body: JSON.stringify(req.body),
+                });
+
+                logger.info("Fetch response", { status: response.status });
+
+            } catch (err) {
+                logger.error("Fetch threw", { error: err.message }); // this will catch network errors
+            }
 
             // Respond Immediately to GitHub (to avoid timeouts).
             res.status(200).json({ message: "Webhook received", received: true });
