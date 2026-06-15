@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PR Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #484f58;
+      --accent: #238636;
+      --accent-hover: #2ea043;
+      --open: #3fb950;
+      --merged: #a371f7;
+      --closed: #8b949e;
+      --reviewing: #d29922;
+      --radius: 6px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* ── Login screen ── */
+    #login-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 1rem;
+    }
+
+    #login-screen h1 {
+      font-size: 1.25rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    #login-screen p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    .btn-github {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 10px 18px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      margin-top: 0.5rem;
+      transition: background 0.15s;
+    }
+
+    .btn-github:hover { background: var(--accent-hover); }
+
+    /* ── Dashboard ── */
+    #dashboard { display: none; }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    #repo-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      border-radius: var(--radius);
+      padding: 5px 10px;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      min-width: 200px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #user-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    #user-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+    }
+
+    .btn-logout {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: var(--radius);
+      padding: 4px 10px;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-logout:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+
+    /* ── Stat bar ── */
+    main { padding: 1.5rem; }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* ── PR table ── */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .table-header {
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+
+    thead th {
+      padding: 8px 16px;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+    .pr-title {
+      font-size: 0.8125rem;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 360px;
+      display: block;
+    }
+
+    .pr-meta {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .badge-open    { background: rgba(63,185,80,0.15);  color: var(--open); }
+    .badge-merged  { background: rgba(163,113,247,0.15); color: var(--merged); }
+    .badge-closed  { background: rgba(139,148,158,0.15); color: var(--closed); }
+
+    .author-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+    }
+
+    .author-avatar {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+    }
+
+    /* ── Empty / loading states ── */
+    .state-row td {
+      text-align: center;
+      padding: 2.5rem;
+      color: var(--text-muted);
+      font-size: 0.8125rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Login screen -->
+  <div id="login-screen">
+    <h1>PR Dashboard</h1>
+    <p>Sign in with GitHub to view your pull requests.</p>
+    <a href="/api/auth/github" class="btn-github">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+          0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+          -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66
+          .07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15
+          -.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27
+          .68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12
+          .51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48
+          0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+      Sign in with GitHub
+    </a>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard">
+    <header>
+      <div class="header-left">
+        <h1>PR Dashboard</h1>
+        <select id="repo-select">
+          <option value="">Loading repos…</option>
+        </select>
+      </div>
+      <div class="header-right">
+        <div id="user-info">
+          <img id="user-avatar" src="" alt="" />
+          <span id="user-login"></span>
+        </div>
+        <button class="btn-logout" onclick="logout()">Sign out</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total PRs</div>
+          <div class="stat-value" id="stat-total">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Open PRs</div>
+          <div class="stat-value" id="stat-open">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Commits</div>
+          <div class="stat-value" id="stat-commits">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Review Time</div>
+          <div class="stat-value" id="stat-avg-time">—</div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header">
+          <span>Pull Requests</span>
+          <span id="table-subtitle" style="font-size:0.75rem;"></span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Author</th>
+              <th>Status</th>
+              <th>Files</th>
+              <th>Opened</th>
+            </tr>
+          </thead>
+          <tbody id="pr-table-body">
+            <tr class="state-row"><td colspan="5">Select a repository to load pull requests.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="/dashboard.js"></script>
+</body>
+</html>

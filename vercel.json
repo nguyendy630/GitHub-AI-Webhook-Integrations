@@ -17,6 +17,30 @@
         {
             "src": "/api/webhooks",
             "dest": "/api/webhooks.js"
+        },
+        {
+            "src": "/api/auth/github",
+            "dest": "/api/auth/github.js"
+        },
+        {
+            "src": "/api/auth/callback",
+            "dest": "/api/auth/callback.js"
+        },
+        {
+            "src": "/api/auth/logout",
+            "dest": "/api/auth/logout.js"
+        },
+        {
+            "src": "/api/me",
+            "dest": "/api/me.js"
+        },
+        {
+            "src": "/dashboard.js",
+            "dest": "/public/dashboard.js"
+        },
+        {
+            "src": "/dashboard.html",
+            "dest": "/public/dashboard.html"
         }
     ]
 }

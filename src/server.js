@@ -34,5 +34,26 @@ if (process.env.NODE_ENV !== "production") {
     app.listen(port, () => logger.info(`Running on port ${port}`));
 }
 
+const cookieParser = require('cookie-parser');
+ 
+// Auth routes
+const authGithub   = require('./api/auth/github');
+const authCallback = require('./api/auth/callback');
+const authLogout   = require('./api/auth/logout');
+const me           = require('./api/me');
+ 
+// ─────────────────────────────────────────
+// Wire up middleware (add after express init)
+ 
+app.use(cookieParser(process.env.SESSION_SECRET)); // signed cookie support
+ 
+// ─────────────────────────────────────────
+// Wire up routes (add with your other routes)
+ 
+app.get('/api/auth/github',   authGithub);
+app.get('/api/auth/callback', authCallback);
+app.get('/api/auth/logout',   authLogout);
+app.get('/api/me',            me);
+
 // Required for Vercel Deployment
 module.exports = app;
