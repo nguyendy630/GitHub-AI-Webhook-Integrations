@@ -17,6 +17,7 @@ module.exports = async (req, res) => {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
             },
+
             body: JSON.stringify({
                 client_id: GITHUB_CLIENT_ID,
                 client_secret: GITHUB_CLIENT_SECRET,
@@ -25,6 +26,8 @@ module.exports = async (req, res) => {
         });
 
         const tokenData = await tokenRes.json();
+
+        console.log(tokenData)
 
         if (tokenData.error || !tokenData.access_token) {
             console.error('GitHub token exchange failed:', tokenData);
