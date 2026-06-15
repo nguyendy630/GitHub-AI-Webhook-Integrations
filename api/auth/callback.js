@@ -27,10 +27,9 @@ module.exports = async (req, res) => {
 
         const tokenData = await tokenRes.json();
 
-        console.log(tokenData)
-
         if (tokenData.error || !tokenData.access_token) {
             console.error('GitHub token exchange failed:', tokenData);
+            console.log(tokenData)
             //   return res.status(401).send('GitHub authentication failed');
             return res.status(401).send(`GitHub token exchange failed: ${JSON.stringify(tokenData)}`);
         }
