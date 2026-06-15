@@ -18,7 +18,7 @@ class GithubService {
         if (!this.octokit) {
             const { Octokit } = await import("@octokit/rest");
             this.octokit = new Octokit({
-                auth: process.env.GITHUB_TOKEN,
+                auth: process.env.GH_TOKEN,
             });
         }
         return this.octokit;
@@ -78,30 +78,47 @@ class GithubService {
         try {
             logger.info("Fetching PR files", { owner, repo, prNumber });
 
-            const { data } = await octokit.pulls.listFiles({
+            const response = await octokit.rest.pulls.listFiles({
                 owner,
                 repo,
-                pull_number: prNumber,
-                per_page: 100, // Max Per Page.
+                pull_number: prNumber, // ensure it's a number
+                per_page: 100,
             });
 
-            // Maps over data from Github API to get file info.
+            const { data, status, headers, url } = response;
+
+            logger.info("PR Files received", {
+                owner,
+                repo,
+                prNumber,
+                fileCount: data.length,
+                status,
+            });
+
             return data.map((file) => ({
                 filename: file.filename,
-                status: file.status, // 'added', 'removed', 'modified', 'renamed'
+                status: file.status,
                 additions: file.additions,
                 deletions: file.deletions,
                 changes: file.changes,
-                patch: file.patch, // The actual diff
+                patch: file.patch,
                 blobUrl: file.blob_url,
                 rawUrl: file.raw_url,
-                previousFilename: file.previous_filename, // if renamed
+                previousFilename: file.previous_filename,
             }));
+
         } catch (error) {
-            logger.error("Error fetching PR files", { error: error.message });
+            logger.error("Error fetching PR files", {
+                error: error.message,
+                owner,
+                repo,
+                prNumber,
+            });
+
             throw error;
         }
     }
+
 
     // REQUIRES TESTING
     /**

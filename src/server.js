@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { Webhooks } = require("@octokit/webhooks");
-const logger = require("src/utils/logger.js");
+const logger = require("./utils/logger")
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -31,6 +31,7 @@ process.on("SIGINT", () => {
  */
 if (process.env.NODE_ENV !== "production") {
     const port = process.env.PORT || 3000;
+    console.log(`Running in development mode on port ${port}`);
     app.listen(port, () => logger.info(`Running on port ${port}`));
 }
 

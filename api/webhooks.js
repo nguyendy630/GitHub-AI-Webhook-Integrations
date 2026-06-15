@@ -11,9 +11,11 @@ app.use(express.json())
 async function getWebhooks() {
     if (!getWebhooks.instance) {
         const { Webhooks } = await import("@octokit/webhooks");
+
         getWebhooks.instance = new Webhooks({
             secret: process.env.GH_WEBHOOK,
         });
+
     }
     return getWebhooks.instance;
 }
@@ -42,24 +44,48 @@ app.post("/api/webhooks", async (req, res) => {
 
         if (!isValid) {
             logger.warn("Invalid webhook signature", { event, id });
-            return res.status(401).json({ message: "Invalid signature" });
+            return res.status(401).json({ message: "Invalid signature, not processing" });
         }
 
-        // Respond Immediately to GitHub (to avoid timeouts).
-        res.status(200).json({ message: "Webhook received", received: true });
+        logger.info("Webhook verified", { event, id });
 
-        // Process the webhook asynchronously.
-        setImmediate(async () => {
+        try {
+            logger.info("Processing webhook", { event, id });
+            logger.info("Dispatching review job", { event, id });
+
+            const baseURL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${process.env.PORT || 3000}`;
+
             try {
-                await webhookHandler.handleEvent(event, req.body)
-            } catch (error) {
-                logger.error("Error processing webhook", {
-                    event,
-                    id,
-                    error: error.message,
+                logger.info("About to fetch", { url: baseURL + "/api/review-jobs" });
+
+                const response = await fetch(baseURL + "/api/review-jobs", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-GitHub-Event": event,
+                        "X-GitHub-Delivery": id,
+                        "X-Hub-Signature-256": signature,
+                        "X-Review-Job-Secret": process.env.REVIEW_JOBS_SECRET || "",
+                    },
+                    body: JSON.stringify(req.body),
                 });
+
+                logger.info("Fetch response", { status: response.status });
+
+            } catch (err) {
+                logger.error("Fetch threw", { error: err.message }); // this will catch network errors
             }
-        });
+
+            // Respond Immediately to GitHub (to avoid timeouts).
+            res.status(200).json({ message: "Webhook received", received: true });
+
+        } catch (error) {
+            logger.error("Error processing webhook", {
+                event,
+                id,
+                error: error.message,
+            });
+        }
 
     } catch (error) {
         logger.error("Error handling webhook", { error: error.message });
