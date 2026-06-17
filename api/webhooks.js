@@ -65,19 +65,17 @@ app.post("/api/webhooks", async (req, res) => {
                         "X-GitHub-Event": event,
                         "X-GitHub-Delivery": id,
                         "X-Hub-Signature-256": signature,
-                        "X-Review-Job-Secret": process.env.REVIEW_JOBS_SECRET || "",
+                        "x-review-job-secret": process.env.REVIEW_JOBS_SECRET || "",
                     },
                     body: JSON.stringify(req.body),
                 });
 
-                res.status(response.status).json({ message: "Response Status", status: response.status });
+                // Respond Immediately to GitHub (to avoid timeouts).
+                return res.status(response.status).json({ message: "Response Status", status: response.status });
 
             } catch (err) {
-                logger.error("Fetch threw", { error: err.message }); // this will catch network errors
+                logger.error("Error fetching review job endpoint", { error: err.message }); // this will catch network errors
             }
-
-            // Respond Immediately to GitHub (to avoid timeouts).
-            res.status(200).json({ message: "Webhook received", received: true });
 
         } catch (error) {
             logger.error("Error processing webhook", {
@@ -85,6 +83,8 @@ app.post("/api/webhooks", async (req, res) => {
                 id,
                 error: error.message,
             });
+
+            return res.status(500).json({ message: "Error processing webhook" });
         }
 
     } catch (error) {
