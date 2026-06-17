@@ -56,7 +56,7 @@ app.post("/api/webhooks", async (req, res) => {
             const baseURL = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : `http://localhost:${process.env.PORT || 3000}`;
 
             try {
-                logger.info("About to fetch", { url: baseURL + "/api/review-jobs" });
+                logger.info("Reviewing Job...", { url: baseURL + "/api/review-jobs" });
 
                 const response = await fetch(baseURL + "/api/review-jobs", {
                     method: "POST",
@@ -70,7 +70,7 @@ app.post("/api/webhooks", async (req, res) => {
                     body: JSON.stringify(req.body),
                 });
 
-                logger.info("Fetch response", { status: response.status });
+                res.status(response.status).json({ message: "Response Status", status: response.status });
 
             } catch (err) {
                 logger.error("Fetch threw", { error: err.message }); // this will catch network errors

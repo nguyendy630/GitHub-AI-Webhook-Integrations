@@ -1,3 +1,4 @@
+// REQUIRES TESTING
 const logger = require("../utils/logger");
 
 /**
@@ -119,8 +120,6 @@ class GithubService {
         }
     }
 
-
-    // REQUIRES TESTING
     /**
      * Gets the contents of the file at given path in the repository.
      * @param {string} owner

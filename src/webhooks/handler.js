@@ -116,10 +116,6 @@ class WebhookHandler {
         } catch (error) {
             logger.error("Error occurred while fetching PR info", { error: error.message });
         }
-
-        // TODO Phase 2: Fetch and analyze code
-        // TODO Phase 3: Generate AI review
-        // TODO: Post review comment back to GitHub
     }
 
     /**
@@ -136,8 +132,6 @@ class WebhookHandler {
             reviewer: review.user.login,
             state: review.state, // approved, changes_requested, commented
         });
-
-        // TODO: Store this for training data collection
     }
 
     /**
