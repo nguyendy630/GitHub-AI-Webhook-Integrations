@@ -193,20 +193,20 @@ class WebhookHandler {
                 );
                 logger.info("PR comment posted successfully", {
                     pr: prInfo.number,
-                    repo: prInfo.repo,
+                    repo: prInfo.repoName,
                 });
             } catch (error) {
                 logger.error("Failed to post PR comment", {
                     error: error.message,
                     pr: prInfo.number,
-                    repo: prInfo.repo,
+                    repo: prInfo.repoName,
                 });
                 // Do not rethrow—webhook continues (resilient error handling)
             }
         } else {
             logger.info("No issues found; PR comment not posted", {
                 pr: prInfo.number,
-                repo: prInfo.repo,
+                repo: prInfo.repoName,
             });
         }
     }
