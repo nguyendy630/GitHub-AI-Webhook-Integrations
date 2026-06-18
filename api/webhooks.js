@@ -71,7 +71,7 @@ app.post("/api/webhooks", async (req, res) => {
                 });
 
                 // Respond Immediately to GitHub (to avoid timeouts).
-                return res.status(response.status).json({message: "Webhook received and review job dispatched."});
+                return res.status(response.status).json({message: response.status});
 
             } catch (err) {
                 logger.error("Error fetching review job endpoint", { error: err.message }); // this will catch network errors
