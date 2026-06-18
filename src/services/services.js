@@ -143,7 +143,7 @@ class GithubService {
             const { data } = await octokit.repos.getContent({
                 owner,
                 repo,
-                path,
+                filePath,
                 ref, // Branch or commit SHA
             });
 
