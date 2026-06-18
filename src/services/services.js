@@ -220,7 +220,7 @@ class GithubService {
                 repo,
                 pull_number: prNumber,
                 body: commentBody,
-                path: filePath,
+                path,
             });
             return data;
         } catch (error) {
