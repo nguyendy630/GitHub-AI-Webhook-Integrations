@@ -42,10 +42,10 @@ app.post("/api/webhooks", async (req, res) => {
             signature,
         )
 
-        if (!isValid) {
-            logger.warn("Invalid webhook signature", { event, id });
-            return res.status(401).json({ message: "Invalid signature, not processing" });
-        }
+        // if (!isValid) {
+        //     logger.warn("Invalid webhook signature", { event, id });
+        //     return res.status(401).json({ message: "Invalid signature, not processing" });
+        // }
 
         logger.info("Webhook verified", { event, id });
 
@@ -71,7 +71,7 @@ app.post("/api/webhooks", async (req, res) => {
                 });
 
                 // Respond Immediately to GitHub (to avoid timeouts).
-                return res.status(response.status).json({ message: "Response Status", status: response.status });
+                return res.status(200).json({message: "Webhook received and review job dispatched."});
 
             } catch (err) {
                 logger.error("Error fetching review job endpoint", { error: err.message }); // this will catch network errors

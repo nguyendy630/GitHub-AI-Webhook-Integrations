@@ -26,8 +26,6 @@ app.post("/api/review-jobs", async (req, res) => {
 		logger.warn("REVIEW_JOBS_SECRET not set — accepting requests (dev)");
 	}
 
-	console.log(req.body)
-
 	try {
 		const prInfo = await webhookHandler.handleEvent(event, req.body);
 

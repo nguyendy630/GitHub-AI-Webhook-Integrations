@@ -69,14 +69,15 @@ class WebhookHandler {
      * @returns
      */
     async handlePullRequest(payload) {
+        console.log(payload)
+
+        const { action, pull_request, repository, sender } = payload;
 
         logger.info("Handling pull request event", {
             action: payload.action,
             prNumber: payload.pull_request.number,
             repo: payload.repository.full_name,
         });
-
-        const { action, pull_request, repository, sender } = payload;
 
         // Only process specific actions
         const relevantActions = ["opened", "synchronize", "reopened"];
@@ -85,7 +86,7 @@ class WebhookHandler {
             logger.info("Ignoring PR action", { action });
             return;
         }
-
+        
         try {
             logger.info("Fetching PR info from GitHub", {
                 prNumber: pull_request.number,
@@ -99,8 +100,6 @@ class WebhookHandler {
                 repoName: repository.name,
                 repoOwner: sender.login
             }
-
-            console.log(prInfo)
 
             try {
                 await this.queueReview(prInfo);
