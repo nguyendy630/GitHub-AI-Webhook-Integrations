@@ -42,10 +42,10 @@ app.post("/api/webhooks", async (req, res) => {
             signature,
         )
 
-        // if (!isValid) {
-        //     logger.warn("Invalid webhook signature", { event, id });
-        //     return res.status(401).json({ message: "Invalid signature, not processing" });
-        // }
+        if (!isValid) {
+            logger.warn("Invalid webhook signature", { event, id });
+            return res.status(401).json({ message: "Invalid signature, not processing" });
+        }
 
         logger.info("Webhook verified", { event, id });
 
@@ -65,7 +65,7 @@ app.post("/api/webhooks", async (req, res) => {
                         "X-GitHub-Event": event,
                         "X-GitHub-Delivery": id,
                         "X-Hub-Signature-256": signature,
-                        "x-review-job-secret": process.env.REVIEW_JOBS_SECRET || "",
+                        "X-Review-Job-Secret": process.env.REVIEW_JOBS_SECRET || "",
                     },
                     body: JSON.stringify(req.body),
                 });
