@@ -11,7 +11,7 @@ const eventStats = {
     pull_request: 0,
     pull_request_review: 0,
     other: 0,
-    pull: 0
+    push: 0
 }
 
 /**
