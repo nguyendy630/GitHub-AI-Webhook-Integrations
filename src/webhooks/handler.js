@@ -97,7 +97,7 @@ class WebhookHandler {
                 title: pull_request.title,
                 body: pull_request.body,
                 repoName: repository.name,
-                repoOwner: sender.login
+                repoOwner: repository.owner.login
             }
 
             console.log(prInfo)
