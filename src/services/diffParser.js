@@ -386,7 +386,7 @@ class DiffParser {
      * @returns object
      * @param {string} patch
      */
-    analyzeDiff(patch) {
+    analyzeDiff(patch, filename) {
         logger.info("Analyzing diff");
         const addedLines = this.getAddedLines(patch);
         const deletedLines = this.getDeletedLines(patch);
@@ -400,8 +400,8 @@ class DiffParser {
             deletedLines,
 
             // 3. File metadata
-            filename: language,
-            isTestFile: this.isTestFile(language),
+            filename: filename,
+            isTestFile: this.isTestFile(filename),
 
             // 4. Basic patterns
             hasNewFunctions: this.containsNewFunctions(addedLines, language),
@@ -410,7 +410,7 @@ class DiffParser {
             hasImportChanges: this.containsImports(addedLines, language),
 
             // Checking for test changes
-            hasTestChanges: this.isTestFile(language)
+            hasTestChanges: this.isTestFile(filename)
                 ? this.hasTestChanges(addedLines, language)
                 : false,
         };

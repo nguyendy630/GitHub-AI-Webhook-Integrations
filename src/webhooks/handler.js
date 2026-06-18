@@ -166,7 +166,7 @@ class WebhookHandler {
         
         // // Parallel Loop - Each file goes through two steps (analysis and review).
         const reviewPromises = filesToReview.map(async (file) => {
-            const analysis = diffParser.analyzeDiff(file.patch);
+            const analysis = diffParser.analyzeDiff(file.patch, file.filename);
             return await aiReviewer.reviewCode(file, analysis)
         })
 
