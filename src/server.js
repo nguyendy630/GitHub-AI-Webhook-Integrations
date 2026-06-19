@@ -70,9 +70,8 @@ app.post("/api/webhooks", async (req, res) => {
             logger.info("Review job completed", { event, id, pr: prInfo });
 
         } catch (error) {
+            // Response already sent to GitHub above; only log the async failure.
             logger.error("Error processing review job", { event, id, error: error.message });
-            res.status(500).json({ message: "Error processing review job" });
-
         }
 
     } catch (error) {
