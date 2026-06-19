@@ -28,6 +28,7 @@ class AIReviewer {
             - Pay close attention to any new functions detected
             - Flag any suspicious code patterns or potential security risks
             - Match feedback to the conventions of the language
+            - Provide actionable suggestions for improvement
 
             ## File:
             ${JSON.stringify(file, null, 2)}
@@ -41,6 +42,7 @@ class AIReviewer {
             {
                 "severity": "low" | "medium" | "high" | "none",
                 "summary": "one sentence overview",
+                "patch" : "the exact code snippet from the diff that is relevant to your feedback in markdown format (if applicable, otherwise an empty string)",
                 "suggestions": ["...", "..."],
                 "securityFlags": ["...", "..."],
                 "approved": true | false

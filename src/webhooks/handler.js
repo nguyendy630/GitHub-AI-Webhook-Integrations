@@ -100,7 +100,7 @@ class WebhookHandler {
                 repoOwner: repository.owner.login
             }
 
-            console.log(prInfo)
+            // console.log(prInfo)
 
             try {
                 await this.queueReview(prInfo);
@@ -116,10 +116,6 @@ class WebhookHandler {
         } catch (error) {
             logger.error("Error occurred while fetching PR info", { error: error.message });
         }
-
-        // TODO Phase 2: Fetch and analyze code
-        // TODO Phase 3: Generate AI review
-        // TODO: Post review comment back to GitHub
     }
 
     /**
@@ -201,7 +197,6 @@ class WebhookHandler {
                     pr: prInfo.number,
                     repo: prInfo.repoName,
                 });
-                // Do not rethrow—webhook continues (resilient error handling)
             }
         } else {
             logger.info("No issues found; PR comment not posted", {
