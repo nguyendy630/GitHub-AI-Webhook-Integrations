@@ -12,8 +12,12 @@ const webhooks = new Webhooks({
     secret: process.env.GH_WEBHOOK,
 });
 
-// Middleware to parse JSON
-app.use(express.json());
+// Middleware to parse JSON and capture raw body for signature verification.
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf.toString();
+    }
+}));
 
 // Health Check Endpoint.
 app.get("/health", (req, res) => {
@@ -25,9 +29,9 @@ app.get("/health", (req, res) => {
 });
 
 // Stats Endpoint
-app.get("/stats", (req, res) => {
-    res.json({ message: "Stats Endpoint not implemented yet!" });
-});
+// app.get("/stats", (req, res) => {
+//     res.json({ message: "Stats Endpoint not implemented yet!" });
+// });
 
 // Github Webhook Endpoint.
 app.post("/api/webhooks", async (req, res) => {
@@ -36,28 +40,39 @@ app.post("/api/webhooks", async (req, res) => {
         const event = req.headers["x-github-event"];
         const id = req.headers["x-github-delivery"];
 
-        // Verify the webhook signature.
-        const isValid = await webhooks.verify(
-            JSON.stringify(req.body),
-            signature,
-        );
+        // Headers verification.
+        if (!signature) {
+            logger.warn("Missing signature header", { event, id });
+            return res.status(400).json({ message: "Missing signature header" });
+
+        } else if (!event) {
+            logger.warn("Missing event headeer", { id });
+            return res.status(400).json({ message: "Missing event header" });
+
+        }
+
+        // Webhooks verification.
+        const isValid = await webhooks.verify(req.rawBody, signature);
 
         if (!isValid) {
             logger.warn("Invalid webhook signature", { event, id });
             return res.status(401).json({ message: "Invalid signature, not processing" });
         }
 
-        logger.info("Webhook verified", { event, id });
-
         // Respond Immediately to GitHub (to avoid timeouts).
         res.status(200).json({ message: "Webhook received", received: true });
+        logger.info("Webhook verified", { event, id });
 
         // Process review asynchronously after responding.
         try {
+            // @TODO: Enqueue review job to a job queue (e.g BullMQ, Redis).
             const prInfo = await webhookHandler.handleEvent(event, req.body);
             logger.info("Review job completed", { event, id, pr: prInfo });
+
         } catch (error) {
             logger.error("Error processing review job", { event, id, error: error.message });
+            res.status(500).json({ message: "Error processing review job" });
+
         }
 
     } catch (error) {
@@ -65,6 +80,7 @@ app.post("/api/webhooks", async (req, res) => {
         if (!res.headersSent) {
             res.status(500).json({ message: "Internal Server Error" });
         }
+
     }
 });
 
