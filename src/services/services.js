@@ -170,7 +170,7 @@ class GithubService {
             }
 
             logger.error("Error fetching file content", {
-                erorr: error.message,
+                error: error.message,
             });
         }
     }

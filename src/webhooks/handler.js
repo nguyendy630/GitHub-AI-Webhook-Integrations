@@ -69,52 +69,36 @@ class WebhookHandler {
      * @returns
      */
     async handlePullRequest(payload) {
+        const { action, pull_request, repository } = payload;
 
         logger.info("Handling pull request event", {
-            action: payload.action,
-            prNumber: payload.pull_request.number,
-            repo: payload.repository.full_name,
+            action,
+            prNumber: pull_request.number,
+            repo: repository.full_name,
         });
 
-        const { action, pull_request, repository, sender } = payload;
-
-        // Only process specific actions
         const relevantActions = ["opened", "synchronize", "reopened"];
-
         if (!relevantActions.includes(action)) {
             logger.info("Ignoring PR action", { action });
             return;
         }
 
+        const prInfo = {
+            number: pull_request.number,
+            title: pull_request.title,
+            body: pull_request.body,
+            repoName: repository.name,
+            repoOwner: repository.owner.login,
+        };
+
         try {
-            logger.info("Fetching PR info from GitHub", {
-                prNumber: pull_request.number,
-                repo: repository.full_name,
-            });
-
-            const prInfo = {
-                number: pull_request.number,
-                title: pull_request.title,
-                body: pull_request.body,
-                repoName: repository.name,
-                repoOwner: repository.owner.login
-            }
-
-            // console.log(prInfo)
-
-            try {
-                await this.queueReview(prInfo);
-
-            } catch (error) {
-                logger.error("Error queueing PR for review", {
-                    pr: pull_request.number,
-                    repo: prInfo.repoName,
-                    error: error.message,
-                });
-            }
-
+            await this.queueReview(prInfo);
         } catch (error) {
-            logger.error("Error occurred while fetching PR info", { error: error.message });
+            logger.error("Error queueing PR for review", {
+                pr: pull_request.number,
+                repo: prInfo.repoName,
+                error: error.message,
+            });
         }
     }
 
@@ -141,65 +125,60 @@ class WebhookHandler {
      * @param {object} prInfo
      */
     async queueReview(prInfo) {
-        // For now, just simulate processing
-        logger.info("Queueing PR for review...", {
+        logger.info("Queueing PR for review", {
             number: prInfo.number,
             repo: prInfo.repoName,
             owner: prInfo.repoOwner,
         });
 
-        // Collecting Files from PR Diff
+        // Phase 1: Fetch and filter files.
         const files = await services.getPRFiles(prInfo.repoOwner, prInfo.repoName, prInfo.number);
         const filesToReview = files.filter(file => aiReviewer.shouldReviewFile(file));
 
-        console.log(`Total files: ${files.length}, Files to review: ${filesToReview.length}`);
-
-        logger.info("AI is reviewing files", {
+        logger.info("Files selected for review", {
             pr: prInfo.number,
             repo: prInfo.repoName,
-            filesToReview: filesToReview.length,
-        })
-        
-        // // Parallel Loop - Each file goes through two steps (analysis and review).
+            total: files.length,
+            toReview: filesToReview.length,
+        });
+
+        // Phase 2: Analyze and review each file in parallel.
         const reviewPromises = filesToReview.map(async (file) => {
             const analysis = diffParser.analyzeDiff(file.patch, file.filename);
-            return await aiReviewer.reviewCode(file, analysis)
-        })
+            return aiReviewer.reviewCode(file, analysis);
+        });
 
         const results = await Promise.allSettled(reviewPromises);
-
-        // Filter out the sucessful reviews and log stats.
-        const reviews = results.filter(result => result.status === "fulfilled").map(result => result.value);
+        const reviews = results
+            .filter(result => result.status === "fulfilled")
+            .map(result => result.value);
 
         logger.info("Reviews completed", {
             total: filesToReview.length,
             succeeded: reviews.length,
-            failed: filesToReview.length - reviews.length
+            failed: filesToReview.length - reviews.length,
         });
 
-        // // Phase 3: Format and post PR comment if issues found
+        // Phase 3: Format and post PR comment if issues found.
         const commentBody = formatReviewsAsMarkdown(reviews);
-        if (commentBody) {
-            try {
-                await services.postPRComment(
-                    prInfo.repoOwner,
-                    prInfo.repoName,
-                    prInfo.number,
-                    commentBody
-                );
-                logger.info("PR comment posted successfully", {
-                    pr: prInfo.number,
-                    repo: prInfo.repoName,
-                });
-            } catch (error) {
-                logger.error("Failed to post PR comment", {
-                    error: error.message,
-                    pr: prInfo.number,
-                    repo: prInfo.repoName,
-                });
-            }
-        } else {
+
+        if (!commentBody) {
             logger.info("No issues found; PR comment not posted", {
+                pr: prInfo.number,
+                repo: prInfo.repoName,
+            });
+            return;
+        }
+
+        try {
+            await services.postPRComment(prInfo.repoOwner, prInfo.repoName, prInfo.number, commentBody);
+            logger.info("PR comment posted successfully", {
+                pr: prInfo.number,
+                repo: prInfo.repoName,
+            });
+        } catch (error) {
+            logger.error("Failed to post PR comment", {
+                error: error.message,
                 pr: prInfo.number,
                 repo: prInfo.repoName,
             });

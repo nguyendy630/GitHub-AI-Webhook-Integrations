@@ -95,6 +95,4 @@ process.on("SIGINT", () => {
     process.exit();
 });
 
-app.listen(port, () => logger.info(`Running on port ${port}`));
-
-module.exports = app;
+app.listen(port, () => { logger.info(`Server is running on port ${port}`) })
