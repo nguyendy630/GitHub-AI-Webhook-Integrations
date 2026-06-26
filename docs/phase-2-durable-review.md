@@ -1,72 +1,59 @@
-# Phase 2 — Durable Background Review Processing
+# Phase 2 — Durable Background Review Processing (Future Work)
 
-Goal: move expensive review work out of the webhook invocation into a durable background path (endpoint, queue, or worker) so serverless lifecycle does not cause hangs or lost work.
+This document describes a potential future architecture for making review processing more durable. The current implementation processes reviews inline (asynchronously after the 200 response) inside the same server process. That works, but has failure and observability trade-offs.
 
-Overview
-- Keep `POST /api/webhooks` as a fast verify-and-ack endpoint.
-- Hand off job to a separate durable processor that owns `getPRFiles()`, diff analysis, AI review, and posting the summary comment.
+## Current Implementation
 
-Steps
+`server.js` responds `200 OK` to GitHub immediately, then calls `webhookHandler.handleEvent()` in the same process. If the server restarts mid-review, the job is lost silently. There is no retry mechanism.
 
-1) Create `api/review-jobs.js` (Review Job Endpoint)
-- Purpose: receive POST requests with PR metadata and run the review flow.
-- Implementation sketch:
-  - Validate incoming payload and HMAC (optional if already validated by webhook)
-  - Call `const webhookHandler = require('../src/webhooks/handler'); await webhookHandler.handleEvent(event, payload);
-- Deployment: Vercel serverless route.
+## Proposed Durable Architecture
 
-2) Add `src/services/reviewDispatcher.js` (optional)
-- Purpose: centralize job dispatch logic (POST to `/api/review-jobs` or enqueue to queue).
-- When used by `api/webhooks.js`, this keeps the webhook code simple and testable.
-- Implementation sketch:
-  - Export `dispatchReviewJob(prInfo)` which POSTs to `${APP_BASE_URL}/api/review-jobs` or writes to persistence.
+Move expensive review work into a separate, retryable job path.
 
-3) Update `api/webhooks.js` to dispatch jobs (and remove `setImmediate()`)
-- After verifying signature and responding `200 OK`, call the dispatcher asynchronously (non-blocking):
-  - `await dispatchReviewJob(prInfo)` OR `fetch(...)` in a try/catch with no await (best-effort)
-- Keep a temporary fallback to `setImmediate()` only while migrating.
+### Components
 
-4) Implement `api/review-jobs.js` to invoke the handler
-- This route should be authoritative and have full execution budget to run `webhookHandler.handleEvent()`.
-- Add logging and error handling. If job fails, return a 5xx to enable retries if called directly, or record the failure for retry if enqueued.
+**1. Review job queue or endpoint**
 
-5) Add timeouts and fail-fast guards in `src/services/services.js` and OpenAI calls
-- Wrap network calls in a `Promise.race()` with a configurable timeout (e.g., 10s):
+Options:
+- A managed queue (BullMQ + Redis, Vercel Queues, etc.) that persists the job and retries on failure
+- A separate internal HTTP endpoint (`POST /api/review-jobs`) that can be called by the webhook handler and retried independently
+
+**2. Webhook handler change**
+
+After verifying the signature and sending `200 OK`, dispatch to the queue/endpoint instead of calling `webhookHandler.handleEvent()` directly. Keep a fallback to the current inline path while migrating.
+
+**3. Timeout guards**
+
+Wrap long-running network calls in `Promise.race()` with a configurable timeout:
+
 ```js
 function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
-  ]);
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+    ]);
 }
 ```
-- Use for `getPRFiles()`, `postPRComment()`, and the OpenAI request.
 
-6) Optional: Add persistence or a queue for retries (S3, Redis, or managed queue)
-- Persist incoming webhook payloads before dispatching so you can retry failed jobs.
-- Worker(s) consume the queue and run `webhookHandler.handleEvent()`.
+Apply to `getPRFiles()`, `postPRComment()`, and the OpenAI call.
 
-7) Update docs and agent guidance
-- `AGENTS.md` and `README.md` should describe the new durable flow and the reasons it was added.
-- Add test/integration instructions.
+**4. Persistence for retries**
 
-8) Deploy and test
-- Deploy to Vercel (or staging) and run an end-to-end PR:
-  - Confirm webhook `200 OK` returned quickly
-  - Confirm review job accepted and processed independently
-  - Verify `getPRFiles()` completes and reviews are posted
+Persist incoming webhook payloads before dispatching so that failed jobs can be replayed.
 
-Testing tips
-- Use `ngrok` or Vercel preview deployments for webhook delivery. Example local dev flow:
-  - `npm run dev` (local server)
-  - `npx ngrok http 3000` (create public URL)
-  - Configure GitHub webhook to use the ngrok URL
-- Add logs around job dispatch and review processor to verify handoff.
+### Rollout Strategy
 
-Rollout strategy
-- Implement `api/review-jobs.js` and dispatcher in parallel with the existing `setImmediate()` flow.
-- Once the job endpoint is stable, switch webhook to dispatch-only and remove `setImmediate()`.
+1. Implement the job endpoint/queue alongside the existing inline flow
+2. Route new traffic to the job path
+3. Once the job path is stable, remove the inline call from `server.js`
 
-Notes
-- This change prioritizes reliability and observability over minimal code edits.
-- If you want, I can implement `api/review-jobs.js` and the dispatcher now with tests and a small integration script.
+### Testing
+
+- Use ngrok (`npx ngrok http 3000`) or a staging deployment to receive real GitHub webhook deliveries
+- Confirm `200 OK` is returned before the review completes
+- Confirm the review job processes independently and posts the comment
+- Simulate a failure mid-review and confirm the retry picks up correctly
+
+## Why This Isn't Done Yet
+
+The current inline-async approach is simple and sufficient for low-volume use. A durable queue adds operational complexity (Redis, queue infrastructure, dead-letter handling) that isn't justified until reliability at scale becomes a requirement.
