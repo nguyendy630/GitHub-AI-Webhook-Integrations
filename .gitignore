@@ -58,3 +58,4 @@ yarn-error.log
 .env*.local
 test.json
 test.js
+CLAUDE.md
