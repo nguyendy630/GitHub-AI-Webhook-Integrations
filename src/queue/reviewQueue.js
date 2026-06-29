@@ -1,14 +1,6 @@
 const { Queue } = require("bullmq");
 const connection = require("./redisConnection");
-
-// Correctly loading config.
-if (!connection ||
-    !connection.host ||
-    !connection.port
-) {
-    logger.error("Invalid Redis connection configuration:", connection)
-    throw new Error("Invalid Redis connection configuration.");
-}
+const logger = require("../utils/logger");
 
 try {
     const reviewQueue = new Queue("pr-review", {
@@ -32,6 +24,6 @@ try {
     module.exports = reviewQueue;
 
 } catch (error) {
-    logger.error("Failed to initialize the review queue:", error);
+    logger.error("Failed to initialize the review queue: " + error.message);
     throw error;
 }

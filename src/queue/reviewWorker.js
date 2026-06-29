@@ -1,9 +1,11 @@
 const { Worker } = require("bullmq");
 const connection = require("./redisConnection");
 const logger = require("../utils/logger");
+
 const services = require("../services/services");
 const diffParser = require("../services/diffParser");
 const AIReviewer = require("../services/aiReviewer");
+
 const aiReviewer = new AIReviewer();
 const { formatReviewsAsMarkdown } = require("../utils/commentFormatter");
 
