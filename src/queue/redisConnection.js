@@ -1,12 +1,15 @@
 const logger = require("../utils/logger");
-
 const ALLOWED_PROTOCOLS = new Set(["redis:", "rediss:"]);
 
 function safeDecode(str) {
     try { return decodeURIComponent(str); }
-    catch { return str; }
+    catch {
+        logger.warn(`Failed to decode URI component: ${str}. Using the original string.`);
+        return str;
+    }
 }
 
+// REDIS_URL must come from trusted deployment config, never from user-controlled input.
 try {
     const url = new URL(process.env.REDIS_URL || "redis://localhost:6379");
 
@@ -34,8 +37,8 @@ try {
         host: url.hostname,
         port,
         tls: url.protocol === "rediss:",
-        ...(url.username && { username: safeDecode(url.username) }),
-        ...(url.password && { password: safeDecode(url.password) }),
+        ...(url.username !== "" && { username: safeDecode(url.username) }),
+        ...(url.password !== "" && { password: safeDecode(url.password) }),
     };
 } catch (error) {
     logger.error("Invalid REDIS_URL: " + error.message);
