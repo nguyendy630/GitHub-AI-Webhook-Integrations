@@ -1,5 +1,17 @@
 const logger = require("./logger");
 
+function getSeverityEmoji(severity) {
+    const emojiBySeverity = {
+        critical: "🟣",
+        high: "🔴",
+        medium: "🟡",
+        low: "🟢",
+        none: "⚪",
+    };
+
+    return emojiBySeverity[severity] || "❓";
+}
+
 /**
  * Formats an array of AI reviews into a GitHub PR comment with collapsible details.
  * Only includes files with severity > 'none' (i.e., files that need attention).
@@ -28,7 +40,7 @@ function formatReviewsAsMarkdown(reviews) {
         }
 
         // Build the comment header
-        let commentBody = `## AI Code Review\n\n`;
+        let commentBody = `## 🤖 AI Code Review\n\n`;
         commentBody += `Found **${issuesOnly.length}** file(s) with issues:\n\n`;
 
         // Group issues into a section per severity level, ordered low to high
@@ -47,10 +59,11 @@ function formatReviewsAsMarkdown(reviews) {
 
             // Add each file as a collapsible section
             group.forEach((review) => {
-                const isApproved = review.approved ? "Approved" : "Rejected";
+                const reviewStatus = review.approved ? "✅ Approved" : "❌ Rejected";
+                const severityEmoji = getSeverityEmoji(review.severity);
 
                 commentBody += `<details>\n`;
-                commentBody += `<summary><strong>${review.filename}</strong> — ${review.severity.toUpperCase()} (${isApproved})</summary>\n\n`;
+                commentBody += `<summary><strong>${review.filename}</strong> — ${severityEmoji} ${review.severity.toUpperCase()} (${reviewStatus})</summary>\n\n`;
 
                 // Summary
                 commentBody += `**Summary:** ${review.summary}\n\n`;
@@ -66,7 +79,7 @@ function formatReviewsAsMarkdown(reviews) {
                 // Patch snippet
                 if (review.patch) {
                     commentBody += `**Relevant Code:**\n`;
-                    commentBody += `\`\`\`\${review.patch}\n\`\`\`\n\n`;
+                    commentBody += `\`\`\`\n${review.patch}\n\`\`\`\n\n`;
                 }
 
                 // Suggestions
@@ -92,6 +105,14 @@ function formatReviewsAsMarkdown(reviews) {
                     commentBody += `\n`;
                 }
 
+                if (review.securityFlags && review.securityFlags.length > 0) {
+                    commentBody += `**🔒 Security Flags:**\n`;
+                    review.securityFlags.forEach((flag) => {
+                        commentBody += `- ${flag}\n`;
+                    });
+                    commentBody += `\n`;
+                }
+
                 commentBody += `</details>\n\n`;
             });
         });
@@ -111,4 +132,5 @@ function formatReviewsAsMarkdown(reviews) {
 
 module.exports = {
     formatReviewsAsMarkdown,
+    getSeverityEmoji,
 };
