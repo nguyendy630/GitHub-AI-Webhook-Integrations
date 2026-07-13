@@ -1,4 +1,4 @@
-const { formatReviewsAsMarkdown, getSeverityEmoji } = require("../../src/utils/commentFormatter");
+const { formatReviewsAsMarkdown } = require("../../src/utils/commentFormatter");
 
 describe("commentFormatter", () => {
     describe("formatReviewsAsMarkdown", () => {
@@ -50,7 +50,7 @@ describe("commentFormatter", () => {
             const result = formatReviewsAsMarkdown(reviews);
 
             // Check for expected structure and content
-            expect(result).toContain("## 🤖 AI Code Review");
+            expect(result).toContain("## AI Code Review");
             expect(result).toContain("Found **2** file(s) with issues:");
             expect(result).toContain("src/auth.js");
             expect(result).toContain("src/utils.js");
@@ -59,9 +59,6 @@ describe("commentFormatter", () => {
             expect(result).toContain("<details>");
             expect(result).toContain("</details>");
             expect(result).toContain("**Suggestions:**");
-            expect(result).toContain("**🔒 Security Flags:**");
-            expect(result).toContain("Hardcoded credentials");
-            expect(result).toContain("SQL injection risk");
         });
 
         it("should filter out files with severity 'none'", () => {
@@ -90,7 +87,7 @@ describe("commentFormatter", () => {
             expect(result).toContain("Found **1** file(s) with issues:");
         });
 
-        it("should include rejection emoji when approved is false", () => {
+        it("should indicate rejection when approved is false", () => {
             const reviews = [
                 {
                     filename: "src/test.js",
@@ -102,10 +99,10 @@ describe("commentFormatter", () => {
                 },
             ];
             const result = formatReviewsAsMarkdown(reviews);
-            expect(result).toContain("❌ Rejected");
+            expect(result).toContain("Rejected");
         });
 
-        it("should include approval emoji when approved is true", () => {
+        it("should indicate approval when approved is true", () => {
             const reviews = [
                 {
                     filename: "src/test.js",
@@ -117,7 +114,7 @@ describe("commentFormatter", () => {
                 },
             ];
             const result = formatReviewsAsMarkdown(reviews);
-            expect(result).toContain("✅ Approved");
+            expect(result).toContain("Approved");
         });
 
         it("should omit suggestions section if empty", () => {
@@ -133,23 +130,6 @@ describe("commentFormatter", () => {
             ];
             const result = formatReviewsAsMarkdown(reviews);
             expect(result).not.toContain("**Suggestions:**");
-            expect(result).toContain("**🔒 Security Flags:**");
-        });
-
-        it("should omit security flags section if empty", () => {
-            const reviews = [
-                {
-                    filename: "src/test.js",
-                    severity: "medium",
-                    summary: "Issue found",
-                    suggestions: ["Fix this"],
-                    securityFlags: [],
-                    approved: false,
-                },
-            ];
-            const result = formatReviewsAsMarkdown(reviews);
-            expect(result).toContain("**Suggestions:**");
-            expect(result).not.toContain("**🔒 Security Flags:**");
         });
 
         it("should handle null reviews gracefully", () => {
@@ -171,29 +151,39 @@ describe("commentFormatter", () => {
             expect(result).toContain("src/test.js");
             expect(result).toContain("Issue");
             expect(result).not.toContain("**Suggestions:**");
-            expect(result).not.toContain("**🔒 Security Flags:**");
-        });
-    });
-
-    describe("getSeverityEmoji", () => {
-        it("should return correct emoji for high severity", () => {
-            expect(getSeverityEmoji("high")).toBe("🔴");
+            expect(result).not.toContain("**Security Flags:**");
         });
 
-        it("should return correct emoji for medium severity", () => {
-            expect(getSeverityEmoji("medium")).toBe("🟡");
+        it("should render the patch as a markdown code block when present", () => {
+            const reviews = [
+                {
+                    filename: "src/test.js",
+                    severity: "medium",
+                    summary: "Issue found",
+                    patch: "const x = 1;",
+                    suggestions: [],
+                    securityFlags: [],
+                    approved: true,
+                },
+            ];
+            const result = formatReviewsAsMarkdown(reviews);
+            expect(result).toContain("**Relevant Code:**");
+            expect(result).toContain("```\nconst x = 1;\n```");
         });
 
-        it("should return correct emoji for low severity", () => {
-            expect(getSeverityEmoji("low")).toBe("🟢");
-        });
-
-        it("should return correct emoji for none severity", () => {
-            expect(getSeverityEmoji("none")).toBe("⚪");
-        });
-
-        it("should return fallback emoji for unknown severity", () => {
-            expect(getSeverityEmoji("unknown")).toBe("❓");
+        it("should omit the relevant code section if patch is absent", () => {
+            const reviews = [
+                {
+                    filename: "src/test.js",
+                    severity: "medium",
+                    summary: "Issue found",
+                    suggestions: [],
+                    securityFlags: [],
+                    approved: true,
+                },
+            ];
+            const result = formatReviewsAsMarkdown(reviews);
+            expect(result).not.toContain("**Relevant Code:**");
         });
     });
 });

@@ -1,6 +1,57 @@
 const logger = require("../utils/logger");
 const { OpenAI } = require("openai");
 
+/**
+ * JSON Schema enforced via OpenAI Structured Outputs so the model's response
+ * is always valid, correctly-escaped JSON (e.g. code snippets in `patch`
+ * with embedded newlines/quotes can otherwise break naive JSON.parse).
+ */
+const REVIEW_RESPONSE_FORMAT = {
+    type: "json_schema",
+    name: "code_review",
+    strict: true,
+    schema: {
+        type: "object",
+        properties: {
+            severity: {
+                type: "string",
+                enum: ["none", "low", "medium", "high", "critical"],
+            },
+            summary: { type: "string" },
+            patch: { type: "string" },
+            keyPrinciple: { type: "string" },
+            suggestions: {
+                type: "array",
+                items: {
+                    type: "object",
+                    properties: {
+                        level: { type: "string", enum: ["junior", "senior", "both"] },
+                        issue: { type: "string" },
+                        why: { type: "string" },
+                        fix: { type: "string" },
+                    },
+                    required: ["level", "issue", "why", "fix"],
+                    additionalProperties: false,
+                },
+            },
+            securityFlags: { type: "array", items: { type: "string" } },
+            didWell: { type: "string" },
+            approved: { type: "boolean" },
+        },
+        required: [
+            "severity",
+            "summary",
+            "patch",
+            "keyPrinciple",
+            "suggestions",
+            "securityFlags",
+            "didWell",
+            "approved",
+        ],
+        additionalProperties: false,
+    },
+};
+
 class AIReviewer {
     constructor() {
         if (!process.env.OPENAI_API_KEY) {
@@ -20,7 +71,7 @@ class AIReviewer {
      */
     buildReviewPrompt(file, analysis) {
         const prompt =
-                `
+            `
                     You are a senior software engineer conducting a thorough, educational code review on a GitHub pull request.
 
                     Your review must serve TWO audiences simultaneously:
@@ -107,8 +158,6 @@ class AIReviewer {
 
                     ## Output Format (IMPORTANT)
 
-                    Respond ONLY with valid JSON. No markdown, no explanation, no backticks.
-
                     Use exactly this structure:
                     {
                         "severity": "none" | "low" | "medium" | "high" | "critical",
@@ -120,14 +169,15 @@ class AIReviewer {
                                 "level": "junior" | "senior" | "both",
                                 "issue": "What is wrong or could be improved",
                                 "why": "The underlying principle or risk",
-                                "fix": "Concrete actionable suggestion or example"
+                                "fix": "small code snippet suggestion"
                             }
                         ],
                         "securityFlags": ["..."],
                         "didWell": "One thing done well in this diff worth reinforcing (or empty string if nothing notable)",
                         "approved": true | false
                     }
-                `
+        `
+        return prompt;
     }
 
     /**
@@ -143,6 +193,9 @@ class AIReviewer {
             const response = await this.ai.responses.create({
                 model: this.model,
                 input: prompt,
+                text: {
+                    format: REVIEW_RESPONSE_FORMAT,
+                },
             })
 
             if (!response.output_text) {
@@ -168,6 +221,7 @@ class AIReviewer {
             filename,
             severity: "none",
             summary: "Review could not be generated for this file.",
+            patch: "",
             suggestions: [],
             securityFlags: [],
             approved: true
@@ -197,6 +251,7 @@ class AIReviewer {
                 filename,
                 severity: review.severity,
                 summary: review.summary,
+                patch: review.patch || "",
                 suggestions: review.suggestions || [],
                 securityFlags: review.securityFlags || [],
                 approved: review.approved ?? true
