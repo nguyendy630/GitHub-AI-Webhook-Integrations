@@ -46,7 +46,7 @@ function formatReviewsAsMarkdown(reviews) {
             if (review.suggestions && review.suggestions.length > 0) {
                 commentBody += `**Suggestions:**\n`;
                 review.suggestions.forEach((suggestion) => {
-                    commentBody += `- ${suggestion}\n`;
+                    commentBody += ` - ${suggestion.blocking ? "🚫 Blocking" : "📝 Nit:" } ${suggestion.text}\n`;
                 });
                 commentBody += `\n`;
             }

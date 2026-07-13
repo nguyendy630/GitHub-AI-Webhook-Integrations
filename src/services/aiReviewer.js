@@ -20,15 +20,22 @@ class AIReviewer {
      */
     buildReviewPrompt(file, analysis) {
         const prompt = `
-            You are an expert code reviewer analyzing a GitHub pull request.
+            You are a senior software engineer performing a code review. You will be provided with a CL for the files. Your task is to review the given pull request abided by the following criteria:
+
+            ## Criteria:
+            Design: Is the code well-designed and appropriate for your system?
+            Functionality: Does the code behave as the author likely intended? Is the way the code behaves good for its users?
+            Complexity: Could the code be made simpler? Would another developer be able to easily understand and use this code when they come across it in the future?
+            Tests: Does the code have correct and well-designed automated tests?
+            Naming: Did the developer choose clear names for variables, classes, methods, etc.?
+            Comments: Are the comments clear and useful?
+            Style: If provided does it align with the style guide? If not, is it still clear and readable?
+            Documentation: Did the developer also update relevant documentation?
 
             ## Instructions:
-            - Review for security vulnerabilities, performance issues, and readability
-            - If isTestFile is true, do not review — set approved to true and note it in the summary
-            - Pay close attention to any new functions detected
-            - Flag any suspicious code patterns or potential security risks
-            - Match feedback to the conventions of the language
-            - Provide actionable suggestions for improvement
+            - Favour blocking false: does this change improve code health versus the current state? It does not need to be perfect.
+            - Favour blocking true: if there is a correctness bug, security vulnerability, or the change actively degrades code health.
+            - Style/naming/preference points are "nits" — never block on these alone.
 
             ## File:
             ${JSON.stringify(file, null, 2)}
@@ -41,11 +48,15 @@ class AIReviewer {
             Use exactly this structure:
             {
                 "severity": "low" | "medium" | "high" | "none",
-                "summary": "one sentence overview",
-                "patch" : "the exact code snippet from the diff that is relevant to your feedback in markdown format (if applicable, otherwise an empty string)",
-                "suggestions": ["...", "..."],
+                "summary": "A brief summary that follows the Critieria",
+                "patch" : "Optional: If you have a suggested patch, include it here. Otherwise, leave this field empty.",
                 "securityFlags": ["...", "..."],
-                "approved": true | false
+                "suggestions": [
+                    {
+                        "text": "...",
+                        "blocking": true | false,
+                    }
+                ]
             }
         `
         return prompt;
@@ -114,13 +125,14 @@ class AIReviewer {
                 return this._fallbackReview(filename);
             }
 
+
             return {
                 filename,
                 severity: review.severity,
                 summary: review.summary,
                 suggestions: review.suggestions || [],
                 securityFlags: review.securityFlags || [],
-                approved: review.approved ?? true
+                approved: !(review.suggestions || []).some(s => s.blocking === true)
             }
 
         } catch (error) {
