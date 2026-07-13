@@ -1,57 +1,6 @@
 const logger = require("../utils/logger");
 const { OpenAI } = require("openai");
 
-/**
- * JSON Schema enforced via OpenAI Structured Outputs so the model's response
- * is always valid, correctly-escaped JSON (e.g. code snippets in `patch`
- * with embedded newlines/quotes can otherwise break naive JSON.parse).
- */
-const REVIEW_RESPONSE_FORMAT = {
-    type: "json_schema",
-    name: "code_review",
-    strict: true,
-    schema: {
-        type: "object",
-        properties: {
-            severity: {
-                type: "string",
-                enum: ["none", "low", "medium", "high", "critical"],
-            },
-            summary: { type: "string" },
-            patch: { type: "string" },
-            keyPrinciple: { type: "string" },
-            suggestions: {
-                type: "array",
-                items: {
-                    type: "object",
-                    properties: {
-                        level: { type: "string", enum: ["junior", "senior", "both"] },
-                        issue: { type: "string" },
-                        why: { type: "string" },
-                        fix: { type: "string" },
-                    },
-                    required: ["level", "issue", "why", "fix"],
-                    additionalProperties: false,
-                },
-            },
-            securityFlags: { type: "array", items: { type: "string" } },
-            didWell: { type: "string" },
-            approved: { type: "boolean" },
-        },
-        required: [
-            "severity",
-            "summary",
-            "patch",
-            "keyPrinciple",
-            "suggestions",
-            "securityFlags",
-            "didWell",
-            "approved",
-        ],
-        additionalProperties: false,
-    },
-};
-
 class AIReviewer {
     constructor() {
         if (!process.env.OPENAI_API_KEY) {
@@ -70,112 +19,45 @@ class AIReviewer {
      * @returns {string} prompt
      */
     buildReviewPrompt(file, analysis) {
-        const prompt =
-            `
-                    You are a senior software engineer conducting a thorough, educational code review on a GitHub pull request.
+        const prompt = `
+            You are a senior software engineer performing a code review. You will be provided with a CL for the files. Your task is to review the given pull request abided by the following criteria:
 
-                    Your review must serve TWO audiences simultaneously:
-                    - A JUNIOR developer learning software engineering fundamentals
-                    - A SENIOR engineer who wants precise, high-signal technical feedback
+            ## Criteria:
+            Design: Is the code well-designed and appropriate for your system?
+            Functionality: Does the code behave as the author likely intended? Is the way the code behaves good for its users?
+            Complexity: Could the code be made simpler? Would another developer be able to easily understand and use this code when they come across it in the future?
+            Tests: Does the code have correct and well-designed automated tests?
+            Naming: Did the developer choose clear names for variables, classes, methods, etc.?
+            Comments: Are the comments clear and useful?
+            Style: If provided does it align with the style guide? If not, is it still clear and readable?
+            Documentation: Did the developer also update relevant documentation?
 
-                    ---
+            ## Instructions:
+            - Favour blocking false: does this change improve code health versus the current state? It does not need to be perfect.
+            - Favour blocking true: if there is a correctness bug, security vulnerability, or the change actively degrades code health.
+            - Style/naming/preference points are "nits" — never block on these alone.
 
-                    ## Review Philosophy
+            ## File:
+            ${JSON.stringify(file, null, 2)}
 
-                    Good code review teaches. For every issue you find:
-                    1. Name what's wrong (the WHAT)
-                    2. Explain the underlying principle that's violated (the WHY)
-                    3. Show a concrete fix or direction (the HOW)
+            ## Diff Analysis:
+            ${JSON.stringify(analysis, null, 2)}
 
-                    Don't just flag problems. If a pattern is done well, say so briefly — junior devs need to know what to keep doing.
-
-                    ---
-
-                    ## Review Priorities (in order of severity)
-
-                    **1. Correctness & Security**
-                    - Race conditions, null/undefined access, off-by-one errors
-                    - Injection risks, unvalidated inputs, exposed secrets, improper auth checks
-                    - Unsafe use of eval, dangling async calls, missing error handling
-                    - For juniors: briefly explain *why* security issues are dangerous, not just that they exist
-
-                    **2. Architecture & Design**
-                    - Does this code belong here? (separation of concerns, single responsibility)
-                    - Are abstractions at the right level? Too specific? Too generic?
-                    - Is state managed clearly? Are side effects predictable?
-                    - For juniors: connect the issue to a named principle (SRP, DRY, YAGNI, etc.) when applicable
-
-                    **3. Performance**
-                    - Unnecessary re-computation, missing memoization, N+1 patterns
-                    - Blocking calls in hot paths, memory leaks, inefficient data structures
-                    - For juniors: explain what the cost actually is (CPU, memory, latency)
-
-                    **4. Readability & Maintainability**
-                    - Ambiguous naming, inconsistent conventions, magic numbers/strings
-                    - Functions doing more than one thing, deeply nested logic, missing edge case handling
-                    - For juniors: distinguish between "style preference" and "genuine readability problem"
-
-                    **5. Test Coverage (if applicable)**
-                    - Missing assertions, testing implementation vs behavior, flaky test patterns
-                    - For juniors: explain the difference between unit, integration, and end-to-end testing context when relevant
-
-                    ---
-
-                    ## Test File Rule
-
-                    If isTestFile is true: skip the full review. Set approved to true and note in the summary that test files are excluded from automated review. Do not penalize test-specific patterns like mocking.
-
-                    ---
-
-                    ## New Function Detection
-
-                    Pay close attention to any new functions in the diff. For each:
-                    - Check for missing input validation
-                    - Check for undocumented assumptions (e.g., "caller must ensure X is not null")
-                    - Check whether the function name accurately describes what it does
-                    - For juniors: if a function is complex, note whether it should be broken down
-
-                    ---
-
-                    ## Language & Convention Awareness
-
-                    Match feedback to the idioms and conventions of the detected language:
-                    - Don't flag idiomatic patterns as wrong just because they look unfamiliar
-                    - Do flag anti-patterns specific to this language's ecosystem
-                    - Mention the language-specific convention being violated when you flag something
-
-                    ---
-
-                    ## File Context
-
-                    ${JSON.stringify(file, null, 2)}
-
-                    ## Diff Analysis
-
-                    ${JSON.stringify(analysis, null, 2)}
-
-                    ---
-
-                    ## Output Format (IMPORTANT)
-
-                    Use exactly this structure:
+            ## Output Format (IMPORTANT):
+            Respond ONLY with valid JSON. No markdown, no explanation, no backticks.
+            Use exactly this structure:
+            {
+                "severity": "low" | "medium" | "high" | "none",
+                "summary": "A brief summary that follows the Critieria",
+                "patch" : "Optional: If you have a suggested patch, include it here. Otherwise, leave this field empty.",
+                "securityFlags": ["...", "..."],
+                "suggestions": [
                     {
-                        "severity": "none" | "low" | "medium" | "high" | "critical",
-                        "summary": "One sentence: the single most important thing about this diff",
-                        "patch": "The exact code snippet from the diff most relevant to your feedback, in markdown format. Empty string if not applicable.",
-                        "keyPrinciple": "The core software engineering concept at stake in this review (e.g., 'Input Validation', 'Single Responsibility', 'Error Propagation'). One short phrase.",
-                        "suggestions": [
-                            {
-                                "level": "junior" | "senior" | "both",
-                                "issue": "What is wrong or could be improved",
-                                "why": "The underlying principle or risk",
-                                "fix": "small code snippet suggestion"
-                            }
-                        ],
-                        "securityFlags": ["..."],
-                        "didWell": "One thing done well in this diff worth reinforcing (or empty string if nothing notable)",
-                        "approved": true | false
+                        "text": "...",
+                        "blocking": true | false,
                     }
+                ]
+            }
         `
         return prompt;
     }
@@ -193,9 +75,6 @@ class AIReviewer {
             const response = await this.ai.responses.create({
                 model: this.model,
                 input: prompt,
-                text: {
-                    format: REVIEW_RESPONSE_FORMAT,
-                },
             })
 
             if (!response.output_text) {
@@ -221,7 +100,6 @@ class AIReviewer {
             filename,
             severity: "none",
             summary: "Review could not be generated for this file.",
-            patch: "",
             suggestions: [],
             securityFlags: [],
             approved: true
@@ -247,14 +125,14 @@ class AIReviewer {
                 return this._fallbackReview(filename);
             }
 
+
             return {
                 filename,
                 severity: review.severity,
                 summary: review.summary,
-                patch: review.patch || "",
                 suggestions: review.suggestions || [],
                 securityFlags: review.securityFlags || [],
-                approved: review.approved ?? true
+                approved: !(review.suggestions || []).some(s => s.blocking === true)
             }
 
         } catch (error) {

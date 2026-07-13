@@ -29,8 +29,8 @@ describe("commentFormatter", () => {
                     severity: "high",
                     summary: "Security vulnerability detected",
                     suggestions: [
-                        "Use bcrypt for password hashing",
-                        "Add input validation",
+                        { text: "Use bcrypt for password hashing", blocking: true },
+                        { text: "Add input validation", blocking: false },
                     ],
                     securityFlags: [
                         "Hardcoded credentials",
@@ -42,7 +42,7 @@ describe("commentFormatter", () => {
                     filename: "src/utils.js",
                     severity: "low",
                     summary: "Minor code style issue",
-                    suggestions: ["Use const instead of var"],
+                    suggestions: [{ text: "Use const instead of var", blocking: false }],
                     securityFlags: [],
                     approved: true,
                 },
@@ -59,6 +59,9 @@ describe("commentFormatter", () => {
             expect(result).toContain("<details>");
             expect(result).toContain("</details>");
             expect(result).toContain("**Suggestions:**");
+            expect(result).toContain("🚫 Blocking Use bcrypt for password hashing");
+            expect(result).toContain("📝 Nit: Add input validation");
+            expect(result).toContain("📝 Nit: Use const instead of var");
             expect(result).toContain("**🔒 Security Flags:**");
             expect(result).toContain("Hardcoded credentials");
             expect(result).toContain("SQL injection risk");
@@ -78,7 +81,7 @@ describe("commentFormatter", () => {
                     filename: "src/bad.js",
                     severity: "medium",
                     summary: "Has issues",
-                    suggestions: ["Fix this"],
+                    suggestions: [{ text: "Fix this", blocking: true }],
                     securityFlags: [],
                     approved: false,
                 },
@@ -142,7 +145,7 @@ describe("commentFormatter", () => {
                     filename: "src/test.js",
                     severity: "medium",
                     summary: "Issue found",
-                    suggestions: ["Fix this"],
+                    suggestions: [{ text: "Fix this", blocking: false }],
                     securityFlags: [],
                     approved: false,
                 },

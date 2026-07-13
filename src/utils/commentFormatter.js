@@ -1,17 +1,5 @@
 const logger = require("./logger");
 
-function getSeverityEmoji(severity) {
-    const emojiBySeverity = {
-        critical: "🟣",
-        high: "🔴",
-        medium: "🟡",
-        low: "🟢",
-        none: "⚪",
-    };
-
-    return emojiBySeverity[severity] || "❓";
-}
-
 /**
  * Formats an array of AI reviews into a GitHub PR comment with collapsible details.
  * Only includes files with severity > 'none' (i.e., files that need attention).
@@ -29,7 +17,7 @@ function formatReviewsAsMarkdown(reviews) {
         }
 
         // Filter for issues: severity > 'none'
-        const severityOrder = { none: 0, low: 1, medium: 2, high: 3, critical: 4 };
+        const severityOrder = { none: 0, low: 1, medium: 2, high: 3 };
         const issuesOnly = reviews.filter(
             (review) => severityOrder[review.severity] > 0
         );
@@ -43,78 +31,36 @@ function formatReviewsAsMarkdown(reviews) {
         let commentBody = `## 🤖 AI Code Review\n\n`;
         commentBody += `Found **${issuesOnly.length}** file(s) with issues:\n\n`;
 
-        // Group issues into a section per severity level, ordered low to high
-        const severityLabels = {
-            low: "🟢 Low Severity",
-            medium: "🟡 Medium Severity",
-            high: "🔴 High Severity",
-            critical: "🟣 Critical Severity",
-        };
+        // Add each file as a collapsible section
+        issuesOnly.forEach((review) => {
+            const severityEmoji = getSeverityEmoji(review.severity);
+            const isApproved = review.approved ? "✅ Approved" : "❌ Rejected";
 
-        Object.keys(severityLabels).forEach((severity) => {
-            const group = issuesOnly.filter((review) => review.severity === severity);
-            if (group.length === 0) return;
+            commentBody += `<details>\n`;
+            commentBody += `<summary><strong>${severityEmoji} ${review.filename}</strong> — ${review.severity.toUpperCase()} (${isApproved})</summary>\n\n`;
 
-            commentBody += `### ${severityLabels[severity]} (${group.length})\n\n`;
+            // Summary
+            commentBody += `**Summary:** ${review.summary}\n\n`;
 
-            // Add each file as a collapsible section
-            group.forEach((review) => {
-                const reviewStatus = review.approved ? "✅ Approved" : "❌ Rejected";
-                const severityEmoji = getSeverityEmoji(review.severity);
+            // Suggestions
+            if (review.suggestions && review.suggestions.length > 0) {
+                commentBody += `**Suggestions:**\n`;
+                review.suggestions.forEach((suggestion) => {
+                    commentBody += ` - ${suggestion.blocking ? "🚫 Blocking" : "📝 Nit:" } ${suggestion.text}\n`;
+                });
+                commentBody += `\n`;
+            }
 
-                commentBody += `<details>\n`;
-                commentBody += `<summary><strong>${review.filename}</strong> — ${severityEmoji} ${review.severity.toUpperCase()} (${reviewStatus})</summary>\n\n`;
+            // Security flags
+            if (review.securityFlags && review.securityFlags.length > 0) {
+                commentBody += `**🔒 Security Flags:**\n`;
+                review.securityFlags.forEach((flag) => {
+                    commentBody += `- ⚠️ ${flag}\n`;
+                });
+                commentBody += `\n`;
+            }
 
-                // Summary
-                commentBody += `**Summary:** ${review.summary}\n\n`;
-
-                if (review.keyPrinciple) {
-                    commentBody += `**Key Principle:** \`${review.keyPrinciple}\`\n\n`;
-                }
-
-                if (review.didWell) {
-                    commentBody += `**✅ Done Well:** ${review.didWell}\n\n`;
-                }
-
-                // Patch snippet
-                if (review.patch) {
-                    commentBody += `**Relevant Code:**\n`;
-                    commentBody += `\`\`\`\n${review.patch}\n\`\`\`\n\n`;
-                }
-
-                // Suggestions
-                if (review.suggestions && review.suggestions.length > 0) {
-                    commentBody += `**Suggestions:**\n`;
-                    review.suggestions.forEach((suggestion) => {
-                        // Guard: support both old flat strings and new structured objects
-                        if (typeof suggestion === "string") {
-                            commentBody += `- ${suggestion}\n`;
-                            return;
-                        }
-
-                        const badge = suggestion.level === "junior"
-                            ? "🟢 Junior"
-                            : suggestion.level === "senior"
-                                ? "🔵 Senior"
-                                : "🟡 All";
-
-                        commentBody += `- **[${badge}]** ${suggestion.issue}\n`;
-                        commentBody += `  - **Why:** ${suggestion.why}\n`;
-                        commentBody += `  - **Fix:** \`${suggestion.fix}\`\n`;
-                    });
-                    commentBody += `\n`;
-                }
-
-                if (review.securityFlags && review.securityFlags.length > 0) {
-                    commentBody += `**🔒 Security Flags:**\n`;
-                    review.securityFlags.forEach((flag) => {
-                        commentBody += `- ${flag}\n`;
-                    });
-                    commentBody += `\n`;
-                }
-
-                commentBody += `</details>\n\n`;
-            });
+            commentBody += `</details>\n\n`;
         });
 
         // Footer
@@ -128,6 +74,21 @@ function formatReviewsAsMarkdown(reviews) {
         });
         return "";
     }
+}
+
+/**
+ * Maps severity level to an emoji for visual distinction.
+ * @param {string} severity - 'low', 'medium', 'high', 'none'
+ * @returns {string} - Emoji
+ */
+function getSeverityEmoji(severity) {
+    const emojiMap = {
+        high: "🔴",
+        medium: "🟡",
+        low: "🟢",
+        none: "⚪",
+    };
+    return emojiMap[severity] || "❓";
 }
 
 module.exports = {
