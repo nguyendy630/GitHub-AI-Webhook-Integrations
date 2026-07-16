@@ -81,7 +81,7 @@ class GithubService {
             const response = await octokit.rest.pulls.listFiles({
                 owner,
                 repo,
-                pull_number: prNumber, // ensure it's a number
+                pull_number: prNumber,
                 per_page: 100,
             });
 
@@ -120,7 +120,6 @@ class GithubService {
     }
 
 
-    // REQUIRES TESTING
     /**
      * Gets the contents of the file at given path in the repository.
      * @param {string} owner
@@ -197,13 +196,13 @@ class GithubService {
             });
 
             return data;
+            console.log(data)
         } catch (error) {
             logger.error("Error fetching PR Diff", { error: error.message });
             throw error;
         }
     }
 
-    // REQUIRES TESTING
     /**
      * Posts a review comment on the given pull request.
      * @param {string} owner
@@ -260,9 +259,8 @@ class GithubService {
         }
     }
 
-    // @TODO
     /**
-     * Post inline comment on specific pull request.
+     * @TODO Post inline comment on specific pull request.
      * @param {String} owner
      * @param {String} repo
      * @param {number} prNumber
