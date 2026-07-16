@@ -6,13 +6,13 @@ const aiReviewer = new AIReviewer();
 const { formatReviewsAsMarkdown } = require("../utils/commentFormatter");
 
 // Monitor event stats.
-const eventStats = {
-    ping: 0,
-    pull_request: 0,
-    pull_request_review: 0,
-    other: 0,
-    push: 0
-}
+// const eventStats = {
+//     ping: 0,
+//     pull_request: 0,
+//     pull_request_review: 0,
+//     other: 0,
+//     push: 0
+// }
 
 /**
  * Handles GitHub webhook events.
@@ -103,7 +103,7 @@ class WebhookHandler {
     }
 
     /**
-     * Handles pull request review events.
+     * @TODO Handles pull request review events.
      * @param {object} payload
      */
     async handlePullRequestReview(payload) {
