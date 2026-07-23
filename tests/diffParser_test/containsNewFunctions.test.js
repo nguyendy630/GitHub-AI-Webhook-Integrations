@@ -18,3 +18,18 @@ test('containsNewFunctions detects a new JS function and ignores control flow li
         language: 'js',
     });
 });
+
+test('containsNewFunctions detects functions in TypeScript files', () => {
+    const addedLines = [
+        { lineNumber: 3, content: 'export function formatName(name: string) {' },
+    ];
+
+    const result = containsNewFunctions(addedLines, 'ts');
+
+    expect(result).toEqual({
+        hasNewFunctions: true,
+        newFunctions: ['export function formatName(name: string) {'],
+        lineNumbers: [3],
+        language: 'ts',
+    });
+});

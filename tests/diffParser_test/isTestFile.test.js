@@ -12,6 +12,8 @@ test.each([
     'test_example.py',
     'src/example.test.ts',
     'src/example_test.py',
+    'test.js',
+    'src/test_file.py',
 ])('isTestFile returns true for %s', (filename) => {
     expect(isTestFile(filename)).toBe(true);
 });

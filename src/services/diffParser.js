@@ -1,5 +1,51 @@
-const { debug } = require("winston");
 const logger = require("../utils/logger");
+
+const JAVASCRIPT_FUNCTION_PATTERNS = {
+    function: /^\s*(export\s+)?(async\s+)?function\s+\w+\s*\(/,
+    arrow: /^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s*)?\([^)]*\)\s*=>/,
+    expression:
+        /^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s+)?function\s*\(/,
+    method: /^\s*(async\s+)?(\w+)\s*\([^)]*\)\s*{/,
+};
+
+const FUNCTION_PATTERNS = {
+    js: JAVASCRIPT_FUNCTION_PATTERNS,
+    ts: JAVASCRIPT_FUNCTION_PATTERNS,
+    py: {
+        function: /^\s*(async\s+)?def\s+\w+\s*\(/,
+    },
+    java: {
+        function:
+            /^\s*(public|private|protected)?\s*(static)?\s*(final)?\s*[\w<>[\],\s]+\s+\w+\s*\(/,
+    },
+    go: {
+        function: /^\s*func\s+(\(\w+\s+\*?\w+\)\s*)?\w+\s*\(/,
+    },
+};
+
+const IMPORT_PATTERNS = {
+    js: /(import\s+.*from|require\s*\()/,
+    ts: /(import\s+.*from|require\s*\()/,
+    py: /(import\s+|from\s+.*import)/,
+    java: /import\s+/,
+    go: /import\s+\(/,
+    rust: /use\s+/,
+    ruby: /require\s+/,
+};
+
+const TEST_PATTERNS = {
+    js: /describe\s*\(/,
+    ts: /describe\s*\(/,
+    py: /def\s+test_/,
+    java: /@Test/,
+    go: /func\s+Test/,
+    rust: /#[cfg\(test\)]/,
+    ruby: /describe\s*\(/,
+};
+
+const EXCLUDE_PATTERNS = {
+    commonPatterns: /^\s*(for|while|if|else|switch|catch)\s*\(/,
+};
 
 /**
  * Diffparser service to parse unified diffs from pull requests.
@@ -14,6 +60,7 @@ class DiffParser {
         this.containsImports = this.containsImports.bind(this);
         this.hasTestChanges = this.hasTestChanges.bind(this);
         this.analyzeDiff = this.analyzeDiff.bind(this);
+        this.getMissingPatternTypes = this.getMissingPatternTypes.bind(this);
     }
 
     /**
@@ -106,61 +153,56 @@ class DiffParser {
     /**
      * Detects the file language by extracting the file extension from the patch.
      * @param {string} patch - The unified diff patch
+     * @param {string} [filename] - Filename supplied by the GitHub files API
      * @returns {string|null} Language code (e.g., 'js', 'py', 'java') or null if not detected
      */
-    detectLanguage(patch) {
-        for (const line of patch.split("\n")) {
-            const trimmed = line.trim();
+    detectLanguage(patch, filename) {
+        let detectedFilename = filename;
 
-            if (trimmed.startsWith("+++")) {
-                // Extract the filename from the +++ line
-                let filename = trimmed
+        if (!detectedFilename) {
+            const fileHeader = patch
+                .split("\n")
+                .map((line) => line.trim())
+                .find((line) => line.startsWith("+++"));
+
+            if (fileHeader) {
+                detectedFilename = fileHeader
                     .replace("+++", "")
                     .replace("b/", "")
                     .trim();
-
-                // Get the file extension
-                const lastDotIndex = filename.lastIndexOf(".");
-                if (lastDotIndex === -1) {
-                    // No extension found
-                    return null;
-                }
-
-                const extension = filename.substring(lastDotIndex + 1).toLowerCase();
-
-                // Map common file extensions to language codes
-                const extensionMap = {
-                    // JavaScript/TypeScript
-                    js: "js",
-                    jsx: "js",
-                    ts: "ts",
-                    tsx: "ts",
-                    // Python
-                    py: "py",
-                    // Java
-                    java: "java",
-                    // Go
-                    go: "go",
-                    // Rust
-                    rs: "rust",
-                    // Ruby
-                    rb: "ruby",
-                    html: "html",
-                    htm: "html",
-                    css: "css",
-                    scss: "scss",
-                    sass: "scss",
-                    less: "less",
-                    // SQL
-                    sql: "sql",
-                };
-
-                // Return mapped language code or fallback to extension itself
-                return extensionMap[extension] || extension;
             }
         }
 
-        return "Unable to detect language"; // Fallback if no +++ line is found
+        if (!detectedFilename) {
+            return "Unable to detect language";
+        }
+
+        const lastDotIndex = detectedFilename.lastIndexOf(".");
+        if (lastDotIndex === -1) {
+            return null;
+        }
+
+        const extension = detectedFilename.substring(lastDotIndex + 1).toLowerCase();
+        const extensionMap = {
+            js: "js",
+            jsx: "js",
+            ts: "ts",
+            tsx: "ts",
+            py: "py",
+            java: "java",
+            go: "go",
+            rs: "rust",
+            rb: "ruby",
+            html: "html",
+            htm: "html",
+            css: "css",
+            scss: "scss",
+            sass: "scss",
+            less: "less",
+            sql: "sql",
+        };
+
+        return extensionMap[extension] || extension;
     }
 
     /**
@@ -177,6 +219,8 @@ class DiffParser {
             /_test\./, // calculator_test.js
             /\.test$/, // calculator.test (no extension)
             /\.spec$/, // calculator.spec
+            /(^|\/)test\.[^./]+$/, // test.js, src/test.py
+            /(^|\/)test_.*\.[^./]+$/, // test_calculator.py, src/test_file.py
             /^test_.*\.[^.]+$/, // test_calculator.js, test_calculator.py
             /^.*_test\.[^.]+$/, // calculator_test.js, calculator_test.py
         ];
@@ -214,44 +258,10 @@ class DiffParser {
         // Sets current Language.
         let currentLanguage = language;
 
-        // Patterns from common languages.
-        let patterns = {
-            js: {
-                // Function declarations
-                function: /^\s*(export\s+)?(async\s+)?function\s+\w+\s*\(/,
-
-                // Arrow functions
-                arrow: /^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s*)?\([^)]*\)\s*=>/,
-
-                // Function expressions
-                expression:
-                    /^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s+)?function\s*\(/,
-
-                // Class methods
-                method: /^\s*(async\s+)?(\w+)\s*\([^)]*\)\s*{/,
-            },
-            py: {
-                function: /^\s*(async\s+)?def\s+\w+\s*\(/,
-            },
-            java: {
-                function:
-                    /^\s*(public|private|protected)?\s*(static)?\s*(final)?\s*[\w<>[\],\s]+\s+\w+\s*\(/,
-            },
-            go: {
-                function: /^\s*func\s+(\(\w+\s+\*?\w+\)\s*)?\w+\s*\(/,
-            },
-        };
-
-        // Excluding control flow patterns.
-        let excludePatterns = {
-            commonPatterns: /^\s*(for|while|if|else|switch|catch)\s*\(/,
-        };
-
         // Language-specific patterns
-        const langPatterns = patterns[currentLanguage];
+        const langPatterns = FUNCTION_PATTERNS[currentLanguage];
 
         if (!langPatterns) {
-            logger.warn(`No patterns defined for language: ${currentLanguage}`);
             return results;
         }
 
@@ -264,22 +274,16 @@ class DiffParser {
             }
 
             // Skip if line matches control flow patterns
-            if (excludePatterns.commonPatterns.test(currentContext)) {
+            if (EXCLUDE_PATTERNS.commonPatterns.test(currentContext)) {
                 return;
             }
 
             // Check all pattern types.
             for (const patternType in langPatterns) {
                 if (currentContext.match(langPatterns[patternType])) {
-                    if (
-                        currentContext.match(langPatterns[patternType]) &&
-                        !currentContext.match(excludePatterns.commonPatterns)
-                    ) {
-                        // Push lines into function array.
-                        functions.push(currentContext.trim());
-                        results.lineNumbers.push(lineObj.lineNumber);
-                        break; // Stops checking other patterns once we find a match.
-                    }
+                    functions.push(currentContext.trim());
+                    results.lineNumbers.push(lineObj.lineNumber);
+                    break; // Stops checking other patterns once we find a match.
                 }
             }
         });
@@ -305,20 +309,9 @@ class DiffParser {
      * @param {string} language
      */
     containsImports(addedLines, language) {
-        const patterns = {
-            js: /import\s+.*from|require\s*\(/,
-            ts: /import\s+.*from|require\s*\(/,
-            py: /import\s+|from\s+.*import/,
-            java: /import\s+/,
-            go: /import\s+\(/,
-            rust: /use\s+/,
-            ruby: /require\s+/,
-        };
-
-        let importPattern = patterns[language];
+        let importPattern = IMPORT_PATTERNS[language];
 
         if (!importPattern) {
-            logger.warn(`No import patterns defined for language: ${language}`);
             return false;
         }
 
@@ -346,22 +339,11 @@ class DiffParser {
      * returns {Array<{ lineNumber: number, context: string }>} addedTest
      */
     hasTestChanges(addedLines, language) {
-        const testPatterns = {
-            js: /describe\s*\(/,
-            ts: /describe\s*\(/,
-            py: /def\s+test_/,
-            java: /@Test/,
-            go: /func\s+Test/,
-            rust: /#[cfg\(test\)]/,
-            ruby: /describe\s*\(/,
-        };
-
         let addedTest = [];
 
-        const testPattern = testPatterns[language];
+        const testPattern = TEST_PATTERNS[language];
 
         if (!testPattern) {
-            logger.warn(`No test patterns defined for language: ${language}`);
             return false;
         }
 
@@ -374,6 +356,31 @@ class DiffParser {
         });
 
         return addedTest.length > 0;
+    }
+
+    /**
+     * Lists parser checks that are unavailable for a detected language.
+     * Test-pattern support matters only when the file is identified as a test.
+     * @param {string|null} language
+     * @param {boolean} isTestFile
+     * @returns {string[]} Missing check names: functions, imports, or tests
+     */
+    getMissingPatternTypes(language, isTestFile) {
+        const missingPatterns = [];
+
+        if (!FUNCTION_PATTERNS[language]) {
+            missingPatterns.push("functions");
+        }
+
+        if (!IMPORT_PATTERNS[language]) {
+            missingPatterns.push("imports");
+        }
+
+        if (isTestFile && !TEST_PATTERNS[language]) {
+            missingPatterns.push("tests");
+        }
+
+        return missingPatterns;
     }
 
     /**
@@ -390,7 +397,18 @@ class DiffParser {
         logger.info("Analyzing diff");
         const addedLines = this.getAddedLines(patch);
         const deletedLines = this.getDeletedLines(patch);
-        const language = this.detectLanguage(patch);
+        const language = this.detectLanguage(patch, filename);
+        const isTestFile = this.isTestFile(filename);
+        const missingPatterns = this.getMissingPatternTypes(language, isTestFile);
+        const functionChanges = this.containsNewFunctions(addedLines, language);
+
+        if (missingPatterns.length > 0) {
+            logger.warn("Limited diff parsing support", {
+                filename,
+                language,
+                missingPatterns,
+            });
+        }
 
         const parsed = {
             // 1. Added lines
@@ -401,16 +419,19 @@ class DiffParser {
 
             // 3. File metadata
             filename: filename,
-            isTestFile: this.isTestFile(filename),
+            isTestFile,
+            language,
+            missingPatterns,
 
             // 4. Basic patterns
-            hasNewFunctions: this.containsNewFunctions(addedLines, language),
+            hasNewFunctions: functionChanges.hasNewFunctions,
+            functionChanges,
 
             // Import changes or new imports.
             hasImportChanges: this.containsImports(addedLines, language),
 
             // Checking for test changes
-            hasTestChanges: this.isTestFile(filename)
+            hasTestChanges: isTestFile
                 ? this.hasTestChanges(addedLines, language)
                 : false,
         };
