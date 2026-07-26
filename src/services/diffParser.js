@@ -1,4 +1,3 @@
-const { debug } = require("winston");
 const logger = require("../utils/logger");
 
 /**
