@@ -91,7 +91,8 @@ class AIReviewer {
             summary: "Review could not be generated for this file.",
             suggestions: [],
             securityFlags: [],
-            approved: true
+            approved: true,
+            reviewFailed: true,
         }
     }
 
