@@ -39,7 +39,7 @@ const TEST_PATTERNS = {
     py: /def\s+test_/,
     java: /@Test/,
     go: /func\s+Test/,
-    rust: /#[cfg\(test\)]/,
+    rust: /#[cfg(test)]/,
     ruby: /describe\s*\(/,
 };
 
