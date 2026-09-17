@@ -48,13 +48,13 @@ class AIReviewer {
             Use exactly this structure:
             {
                 "severity": "low" | "medium" | "high" | "none",
-                "summary": "A brief summary that follows the Critieria",
+                "summary": "A brief summary that follows the criteria",
                 "patch" : "Optional: If you have a suggested patch, include it here. Otherwise, leave this field empty.",
                 "securityFlags": ["...", "..."],
                 "suggestions": [
                     {
                         "text": "...",
-                        "blocking": true | false,
+                        "blocking:" true | false,
                     }
                 ]
             }
@@ -102,9 +102,28 @@ class AIReviewer {
             summary: "Review could not be generated for this file.",
             suggestions: [],
             securityFlags: [],
-            approved: true,
+            approved: false,
             reviewFailed: true,
         }
+    }
+
+    /**
+     * Drops any suggestion entries that don't match the expected { text, blocking } shape
+     * rather than trusting the model's output as-is.
+     * @param {*} suggestions
+     * @param {string} filename
+     * @returns {Array<{text: string, blocking: boolean}>}
+     */
+    _normalizeSuggestions(suggestions, filename) {
+        if (!Array.isArray(suggestions)) return [];
+
+        return suggestions.filter((s) => {
+            const valid = s && typeof s === "object" && typeof s.text === "string" && typeof s.blocking === "boolean";
+            if (!valid) {
+                logger.warn("Dropping malformed suggestion from AI review", { filename, suggestion: s });
+            }
+            return valid;
+        });
     }
 
     /**
@@ -126,14 +145,18 @@ class AIReviewer {
                 return this._fallbackReview(filename);
             }
 
+            const suggestions = this._normalizeSuggestions(review.suggestions, filename);
+            const hasBlockingSuggestion = suggestions.some(s => s.blocking === true);
 
             return {
                 filename,
                 severity: review.severity,
                 summary: review.summary,
-                suggestions: review.suggestions || [],
-                securityFlags: review.securityFlags || [],
-                approved: !(review.suggestions || []).some(s => s.blocking === true)
+                suggestions,
+                securityFlags: Array.isArray(review.securityFlags) ? review.securityFlags : [],
+                // Fail closed: a "high" severity review is never auto-approved, even if the
+                // model forgot to mark any individual suggestion as blocking.
+                approved: review.severity !== "high" && !hasBlockingSuggestion
             }
 
         } catch (error) {

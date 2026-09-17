@@ -59,7 +59,7 @@ describe("commentFormatter", () => {
             expect(result).toContain("<details>");
             expect(result).toContain("</details>");
             expect(result).toContain("**Suggestions:**");
-            expect(result).toContain("🚫 Blocking Use bcrypt for password hashing");
+            expect(result).toContain("🚫 Blocking: Use bcrypt for password hashing");
             expect(result).toContain("📝 Nit: Add input validation");
             expect(result).toContain("📝 Nit: Use const instead of var");
             expect(result).toContain("**🔒 Security Flags:**");
@@ -153,6 +153,26 @@ describe("commentFormatter", () => {
             const result = formatReviewsAsMarkdown(reviews);
             expect(result).toContain("**Suggestions:**");
             expect(result).not.toContain("**🔒 Security Flags:**");
+        });
+
+        it("should label suggestion objects as blocking or nit based on suggestion.blocking", () => {
+            const reviews = [
+                {
+                    filename: "src/auth.js",
+                    severity: "high",
+                    summary: "Needs fixes before merge",
+                    suggestions: [
+                        { text: "Validate the token before use", blocking: true },
+                        { text: "Rename this variable", blocking: false },
+                    ],
+                    securityFlags: [],
+                    approved: false,
+                },
+            ];
+            const result = formatReviewsAsMarkdown(reviews);
+
+            expect(result).toContain("🚫 Blocking: Validate the token before use");
+            expect(result).toContain("📝 Nit: Rename this variable");
         });
 
         it("should handle null reviews gracefully", () => {
