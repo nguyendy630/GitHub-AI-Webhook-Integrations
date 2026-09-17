@@ -270,6 +270,7 @@ class GithubService {
      */
     async postInLineComment(owner, repo, prNumber, comment) {
         try {
+            // not yet implemented
         } catch (error) {
             logger.info("Error posting inline comment", {
                 error: error.message,
