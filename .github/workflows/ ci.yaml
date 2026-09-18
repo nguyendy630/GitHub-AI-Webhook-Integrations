@@ -61,16 +61,8 @@ jobs:
         run: npm ci
 
       # Step 4: Run linter
-      # If you don't have ESLint yet, this step will be skipped gracefully.
-      # To add ESLint: npm install --save-dev eslint && npx eslint --init
       - name: Run ESLint
-        run: |
-          if [ -f ".eslintrc*" ] || [ -f "eslint.config*" ] || [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ]; then
-            npx eslint . --ext .js,.mjs
-          else
-            echo "No ESLint config found. Skipping lint."
-            echo "Tip: Run 'npx eslint --init' to set up linting!"
-          fi
+        run: npm run lint
 
   # ------------------------------------------------------------
   # JOB 2: TEST

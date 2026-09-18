@@ -1,5 +1,52 @@
 const logger = require("../utils/logger");
 
+const JAVASCRIPT_FUNCTION_PATTERNS = {
+    function: /^\s*(export\s+)?(async\s+)?function\s+\w+\s*\(/,
+    arrow: /^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s*)?\([^)]*\)\s*=>/,
+    expression:
+        /^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s+)?function\s*\(/,
+    method: /^\s*(async\s+)?(\w+)\s*\([^)]*\)\s*{/,
+};
+
+const FUNCTION_PATTERNS = {
+    js: JAVASCRIPT_FUNCTION_PATTERNS,
+    ts: JAVASCRIPT_FUNCTION_PATTERNS,
+    py: {
+        function: /^\s*(async\s+)?def\s+\w+\s*\(/,
+    },
+    java: {
+        function:
+            /^\s*(public|private|protected)?\s*(static)?\s*(final)?\s*[\w<>[\],\s]+\s+\w+\s*\(/,
+    },
+    go: {
+        function: /^\s*func\s+(\(\w+\s+\*?\w+\)\s*)?\w+\s*\(/,
+    },
+};
+
+const IMPORT_PATTERNS = {
+    js: /(import\s+.*from|require\s*\()/,
+    ts: /(import\s+.*from|require\s*\()/,
+    py: /(import\s+|from\s+.*import)/,
+    java: /import\s+/,
+    go: /import\s+\(/,
+    rust: /use\s+/,
+    ruby: /require\s+/,
+};
+
+const TEST_PATTERNS = {
+    js: /describe\s*\(/,
+    ts: /describe\s*\(/,
+    py: /def\s+test_/,
+    java: /@Test/,
+    go: /func\s+Test/,
+    rust: /#[cfg(test)]/,
+    ruby: /describe\s*\(/,
+};
+
+const EXCLUDE_PATTERNS = {
+    commonPatterns: /^\s*(for|while|if|else|switch|catch)\s*\(/,
+};
+
 /**
  * Diffparser service to parse unified diffs from pull requests.
  */
@@ -13,6 +60,7 @@ class DiffParser {
         this.containsImports = this.containsImports.bind(this);
         this.hasTestChanges = this.hasTestChanges.bind(this);
         this.analyzeDiff = this.analyzeDiff.bind(this);
+        this.getMissingPatternTypes = this.getMissingPatternTypes.bind(this);
     }
 
     /**
@@ -213,44 +261,10 @@ class DiffParser {
         // Sets current Language.
         let currentLanguage = language;
 
-        // Patterns from common languages.
-        let patterns = {
-            js: {
-                // Function declarations
-                function: /^\s*(export\s+)?(async\s+)?function\s+\w+\s*\(/,
-
-                // Arrow functions
-                arrow: /^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s*)?\([^)]*\)\s*=>/,
-
-                // Function expressions
-                expression:
-                    /^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s+)?function\s*\(/,
-
-                // Class methods
-                method: /^\s*(async\s+)?(\w+)\s*\([^)]*\)\s*{/,
-            },
-            py: {
-                function: /^\s*(async\s+)?def\s+\w+\s*\(/,
-            },
-            java: {
-                function:
-                    /^\s*(public|private|protected)?\s*(static)?\s*(final)?\s*[\w<>[\],\s]+\s+\w+\s*\(/,
-            },
-            go: {
-                function: /^\s*func\s+(\(\w+\s+\*?\w+\)\s*)?\w+\s*\(/,
-            },
-        };
-
-        // Excluding control flow patterns.
-        let excludePatterns = {
-            commonPatterns: /^\s*(for|while|if|else|switch|catch)\s*\(/,
-        };
-
         // Language-specific patterns
-        const langPatterns = patterns[currentLanguage];
+        const langPatterns = FUNCTION_PATTERNS[currentLanguage];
 
         if (!langPatterns) {
-            logger.warn(`No patterns defined for language: ${currentLanguage}`);
             return results;
         }
 
@@ -263,7 +277,7 @@ class DiffParser {
             }
 
             // Skip if line matches control flow patterns
-            if (excludePatterns.commonPatterns.test(currentContext)) {
+            if (EXCLUDE_PATTERNS.commonPatterns.test(currentContext)) {
                 return;
             }
 
@@ -272,7 +286,7 @@ class DiffParser {
                 if (currentContext.match(langPatterns[patternType])) {
                     if (
                         currentContext.match(langPatterns[patternType]) &&
-                        !currentContext.match(excludePatterns.commonPatterns)
+                        !currentContext.match(EXCLUDE_PATTERNS.commonPatterns)
                     ) {
                         // Push lines into function array.
                         functions.push(currentContext.trim());
@@ -304,20 +318,9 @@ class DiffParser {
      * @param {string} language
      */
     containsImports(addedLines, language) {
-        const patterns = {
-            js: /import\s+.*from|require\s*\(/,
-            ts: /import\s+.*from|require\s*\(/,
-            py: /import\s+|from\s+.*import/,
-            java: /import\s+/,
-            go: /import\s+\(/,
-            rust: /use\s+/,
-            ruby: /require\s+/,
-        };
-
-        let importPattern = patterns[language];
+        let importPattern = IMPORT_PATTERNS[language];
 
         if (!importPattern) {
-            logger.warn(`No import patterns defined for language: ${language}`);
             return false;
         }
 
@@ -345,22 +348,11 @@ class DiffParser {
      * returns {Array<{ lineNumber: number, context: string }>} addedTest
      */
     hasTestChanges(addedLines, language) {
-        const testPatterns = {
-            js: /describe\s*\(/,
-            ts: /describe\s*\(/,
-            py: /def\s+test_/,
-            java: /@Test/,
-            go: /func\s+Test/,
-            rust: /#[cfg\(test\)]/,
-            ruby: /describe\s*\(/,
-        };
-
         let addedTest = [];
 
-        const testPattern = testPatterns[language];
+        const testPattern = TEST_PATTERNS[language];
 
         if (!testPattern) {
-            logger.warn(`No test patterns defined for language: ${language}`);
             return false;
         }
 
@@ -373,6 +365,24 @@ class DiffParser {
         });
 
         return addedTest.length > 0;
+    }
+
+    getMissingPatternTypes(language, isTestFile) {
+        const missingPatterns = [];
+
+        if (!FUNCTION_PATTERNS[language]) {
+            missingPatterns.push("functions");
+        }
+
+        if (!IMPORT_PATTERNS[language]) {
+            missingPatterns.push("imports");
+        }
+
+        if (isTestFile && !TEST_PATTERNS[language]) {
+            missingPatterns.push("tests");
+        }
+
+        return missingPatterns;
     }
 
     /**
@@ -390,6 +400,16 @@ class DiffParser {
         const addedLines = this.getAddedLines(patch);
         const deletedLines = this.getDeletedLines(patch);
         const language = this.detectLanguage(patch);
+        const isTestFile = this.isTestFile(filename);
+        const missingPatterns = this.getMissingPatternTypes(language, isTestFile);
+
+        if (missingPatterns.length > 0) {
+            logger.warn("Limited diff parsing support", {
+                filename,
+                language,
+                missingPatterns,
+            });
+        }
 
         const parsed = {
             // 1. Added lines
@@ -400,7 +420,9 @@ class DiffParser {
 
             // 3. File metadata
             filename: filename,
-            isTestFile: this.isTestFile(filename),
+            isTestFile,
+            language,
+            missingPatterns,
 
             // 4. Basic patterns
             hasNewFunctions: this.containsNewFunctions(addedLines, language),
@@ -409,7 +431,7 @@ class DiffParser {
             hasImportChanges: this.containsImports(addedLines, language),
 
             // Checking for test changes
-            hasTestChanges: this.isTestFile(filename)
+            hasTestChanges: isTestFile
                 ? this.hasTestChanges(addedLines, language)
                 : false,
         };

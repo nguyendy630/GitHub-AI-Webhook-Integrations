@@ -3,6 +3,7 @@ const express = require("express");
 const { Webhooks } = require("@octokit/webhooks");
 const logger = require("./utils/logger");
 const webhookHandler = require("./webhooks/handler");
+const worker = require("./queue/reviewWorker");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,9 +30,9 @@ app.get("/health", (req, res) => {
 });
 
 // Stats Endpoint
-// app.get("/stats", (req, res) => {
-//     res.json({ message: "Stats Endpoint not implemented yet!" });
-// });
+app.get("/stats", (req, res) => {
+    res.json({ message: "Stats Endpoint not implemented yet!" });
+});
 
 // Github Webhook Endpoint.
 app.post("/api/webhooks", async (req, res) => {
@@ -48,7 +49,6 @@ app.post("/api/webhooks", async (req, res) => {
         } else if (!event) {
             logger.warn("Missing event headeer", { id });
             return res.status(400).json({ message: "Missing event header" });
-
         }
 
         // Webhooks verification.
@@ -63,16 +63,13 @@ app.post("/api/webhooks", async (req, res) => {
         res.status(200).json({ message: "Webhook received", received: true });
         logger.info("Webhook verified", { event, id });
 
-        // Process review asynchronously after responding.
-        try {
-            // @TODO: Enqueue review job to a job queue (e.g BullMQ, Redis).
-            const prInfo = await webhookHandler.handleEvent(event, req.body);
-            logger.info("Review job completed", { event, id, pr: prInfo });
-
-        } catch (error) {
-            // Response already sent to GitHub above; only log the async failure.
-            logger.error("Error processing review job", { event, id, error: error.message });
-        }
+        // Enqueue review job — worker processes it asynchronously.
+        webhookHandler.handleEvent(event, req.body)
+            .then(() => logger.info("Webhook event handled", { event, id }))
+            .catch((error) => {
+                // Response already sent to GitHub above; only log the async failure.
+                logger.error("Error processing review job", { event, id, error: error.message });
+            });
 
     } catch (error) {
         logger.error("Error handling webhook", { error: error.message });
@@ -89,10 +86,17 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: "Someting Went Wrong!" });
 });
 
-// Graceful shutdown.
-process.on("SIGINT", () => {
+// Graceful shutdown — close the BullMQ worker so in-flight jobs finish.
+process.on("SIGINT", async () => {
     logger.info("Shutting down server");
-    process.exit();
+    await worker.close();
+    process.exit(0);
+});
+
+process.on("SIGTERM", async () => {
+    logger.info("Shutting down server (SIGTERM)");
+    await worker.close();
+    process.exit(0);
 });
 
 app.listen(port, () => { logger.info(`Server is running on port ${port}`) })
