@@ -5,6 +5,7 @@ const logger = require("../utils/logger");
 const services = require("../services/services");
 const diffParser = require("../services/diffParser");
 const AIReviewer = require("../services/aiReviewer");
+const reviewStore = require("../services/reviewStore");
 
 const aiReviewer = new AIReviewer();
 const { formatReviewsAsMarkdown } = require("../utils/commentFormatter");
@@ -82,6 +83,14 @@ async function processReview(job) {
         succeeded: reviews.length,
         failed: failedCount,
     });
+
+    if (reviews.length > 0) {
+        try {
+            await reviewStore.recordReview({ owner, repo, prNumber }, reviews);
+        } catch (error) {
+            logger.error("Failed to record review in dashboard store", { jobId: job.id, pr: prNumber, repo, error: error.message });
+        }
+    }
 
     // Phase 3: Format and post PR comment if issues found.
     let commentBody = formatReviewsAsMarkdown(reviews);

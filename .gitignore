@@ -60,3 +60,4 @@ test.json
 test.js
 CLAUDE.md
 dump.rdb
+.env*

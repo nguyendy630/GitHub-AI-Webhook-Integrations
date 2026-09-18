@@ -4,6 +4,7 @@ const { Webhooks } = require("@octokit/webhooks");
 const logger = require("./utils/logger");
 const webhookHandler = require("./webhooks/handler");
 const worker = require("./queue/reviewWorker");
+const reviewStore = require("./services/reviewStore");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -29,9 +30,54 @@ app.get("/health", (req, res) => {
     });
 });
 
-// Stats Endpoint
-app.get("/stats", (req, res) => {
-    res.json({ message: "Stats Endpoint not implemented yet!" });
+// CORS for the dashboard app only — restrict to the configured origin.
+app.use("/api", (req, res, next) => {
+    const allowedOrigin = process.env.DASHBOARD_ORIGIN;
+    res.setHeader("Vary", "Origin");
+    if (allowedOrigin && req.headers.origin === allowedOrigin) {
+        res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+        res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    }
+    if (req.method === "OPTIONS") {
+        return res.sendStatus(204);
+    }
+    next();
+});
+
+// Dashboard API — aggregate stats, filterable by repo owner.
+app.get("/api/stats", async (req, res) => {
+    try {
+        const stats = await reviewStore.getStats(req.query.owner);
+        res.json(stats);
+    } catch (error) {
+        logger.error("Failed to fetch stats", { error: error.message });
+        res.status(500).json({ message: "Failed to fetch stats" });
+    }
+});
+
+// Dashboard API — reviewed PR list, filterable by repo owner.
+app.get("/api/prs", async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+        const offset = parseInt(req.query.offset, 10) || 0;
+        const reviews = await reviewStore.listReviews({ owner: req.query.owner, limit, offset });
+        res.json(reviews);
+    } catch (error) {
+        logger.error("Failed to fetch PR reviews", { error: error.message });
+        res.status(500).json({ message: "Failed to fetch PR reviews" });
+    }
+});
+
+// Dashboard API — distinct repo owners, for the owner selector.
+app.get("/api/owners", async (req, res) => {
+    try {
+        const owners = await reviewStore.listOwners();
+        res.json(owners);
+    } catch (error) {
+        logger.error("Failed to fetch repo owners", { error: error.message });
+        res.status(500).json({ message: "Failed to fetch repo owners" });
+    }
 });
 
 // Github Webhook Endpoint.
@@ -99,4 +145,9 @@ process.on("SIGTERM", async () => {
     process.exit(0);
 });
 
-app.listen(port, () => { logger.info(`Server is running on port ${port}`) })
+reviewStore.ensureSchema()
+    .then(() => logger.info("Review store schema ready"))
+    .catch((error) => logger.error("Failed to initialize review store schema", { error: error.message }))
+    .finally(() => {
+        app.listen(port, () => { logger.info(`Server is running on port ${port}`) });
+    });
