@@ -19,6 +19,7 @@ module.exports = [
         URLSearchParams: "readonly",
         setTimeout: "readonly",
         setInterval: "readonly",
+        setImmediate: "readonly",
         clearTimeout: "readonly",
         clearInterval: "readonly",
         global: "readonly",
