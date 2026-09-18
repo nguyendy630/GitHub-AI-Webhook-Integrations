@@ -24,8 +24,8 @@ const FUNCTION_PATTERNS = {
 };
 
 const IMPORT_PATTERNS = {
-    js: /(import\s+.*from|require\s*\()/,
-    ts: /(import\s+.*from|require\s*\()/,
+    js: /(import\s+[^;]*\s+from\s+['"][^'"]+['"]|require\s*\(\s*['"])/,
+    ts: /(import\s+[^;]*\s+from\s+['"][^'"]+['"]|require\s*\(\s*['"])/,
     py: /(import\s+|from\s+.*import)/,
     java: /import\s+/,
     go: /import\s+\(/,
@@ -400,7 +400,12 @@ class DiffParser {
         const language = this.detectLanguage(patch, filename);
         const isTestFile = this.isTestFile(filename);
         const missingPatterns = this.getMissingPatternTypes(language, isTestFile);
-        const functionChanges = this.containsNewFunctions(addedLines, language);
+
+        // Test files are reviewed for test coverage, not function/import shape,
+        // so skip that parsing work entirely instead of running it and discarding it.
+        const functionChanges = isTestFile
+            ? { hasNewFunctions: false, newFunctions: [], lineNumbers: [], language }
+            : this.containsNewFunctions(addedLines, language);
 
         if (missingPatterns.length > 0) {
             logger.warn("Limited diff parsing support", {
@@ -428,7 +433,9 @@ class DiffParser {
             functionChanges,
 
             // Import changes or new imports.
-            hasImportChanges: this.containsImports(addedLines, language),
+            hasImportChanges: isTestFile
+                ? false
+                : this.containsImports(addedLines, language),
 
             // Checking for test changes
             hasTestChanges: isTestFile
