@@ -54,7 +54,7 @@ class AIReviewer {
                 "suggestions": [
                     {
                         "text": "...",
-                        "blocking:" true | false,
+                        "blocking": true | false,
                     }
                 ]
             }
