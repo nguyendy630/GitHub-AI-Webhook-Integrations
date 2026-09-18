@@ -30,3 +30,23 @@ test('containsImports correctly identifies if a diff contains import statements'
     expect(containsImports(diffWithImports, 'ts')).toBe(true);
     expect(containsImports(diffWithoutImports, 'txt')).toBe(false);
 });
+
+test('containsImports does not false-positive on prose that merely mentions import/from', () => {
+    const addedLines = [
+        { lineNumber: 1, content: '// TODO: import the user profile data from the cache later' },
+    ];
+
+    expect(containsImports(addedLines, 'js')).toBe(false);
+});
+
+test('containsImports still matches real import and require statements', () => {
+    const addedLines = [
+        { lineNumber: 1, content: "import { foo } from './foo';" },
+    ];
+    expect(containsImports(addedLines, 'js')).toBe(true);
+
+    const requireLines = [
+        { lineNumber: 1, content: "const foo = require('./foo');" },
+    ];
+    expect(containsImports(requireLines, 'js')).toBe(true);
+});

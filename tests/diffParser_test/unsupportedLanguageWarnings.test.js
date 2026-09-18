@@ -58,4 +58,36 @@ index e69de29..4b825dc 100644
             hasTestChanges: false,
         }));
     });
+
+    test("analyzeDiff detects language from the filename when the patch has no file header", () => {
+        jest.spyOn(logger, "info").mockImplementation(() => {});
+        const warnSpy = jest.spyOn(logger, "warn").mockImplementation(() => {});
+        const patch = `@@ -0,0 +1,1 @@
++import logger from "./logger";
+`;
+
+        const analysis = diffParser.analyzeDiff(patch, "src/example.js");
+
+        expect(analysis.language).toBe("js");
+        expect(analysis.missingPatterns).toEqual([]);
+        expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    test("analyzeDiff returns a boolean and details for new functions", () => {
+        jest.spyOn(logger, "info").mockImplementation(() => {});
+        jest.spyOn(logger, "warn").mockImplementation(() => {});
+        const patch = `@@ -0,0 +1,1 @@
++function greet(name) {
+`;
+
+        const analysis = diffParser.analyzeDiff(patch, "src/example.js");
+
+        expect(analysis.hasNewFunctions).toBe(true);
+        expect(analysis.functionChanges).toEqual({
+            hasNewFunctions: true,
+            newFunctions: ["function greet(name) {"],
+            lineNumbers: [1],
+            language: "js",
+        });
+    });
 });
